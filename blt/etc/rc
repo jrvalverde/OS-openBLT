@@ -1,0 +1,9 @@
+# $Id$
+#
+# System initialisation script.  This is run by init after running
+# rc.boot to get enough services going to proceed normally.  We can
+# run any program here, so we must use full pathnames.
+
+# /boot/vfs_test
+/boot/bltsh
+
