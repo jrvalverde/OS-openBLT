@@ -42,7 +42,6 @@ static uint32 rfree = 0;
 
 resnode_t *resource_list = NULL;
 
-
 void rsrc_init(void *map, int size)
 {
     int i;
@@ -53,7 +52,7 @@ void rsrc_init(void *map, int size)
     null_resource.rights = NULL;
     
     rfree = 1;    
-    rmax = size / sizeof(resource_t);
+    rmax = size / sizeof(rtab);
     rmap = (rtab *) map;
     for(i = 0; i < rmax; i++) {
         rmap[i].resource = &null_resource;
@@ -147,12 +146,14 @@ void rsrc_bind(resource_t *rsrc, rsrc_type type, task_t *owner)
         rn->resource = rsrc;
         rn->prev = NULL;
         rn->next = owner->resources;
+		if(owner->resources) owner->resources->prev = rn;
         owner->resources = rn;	
     }
     rn = (resnode_t *) kmalloc(resnode_t);
     rn->resource = rsrc;
     rn->prev = NULL;
     rn->next = resource_list;
+	if(resource_list) resource_list->prev = rn;
     resource_list = rn;
 }
 
@@ -194,11 +195,17 @@ void rsrc_release(resource_t *r)
             }
         }	
     }
+	
+	/* wait all blocking objects */
+	while(r->queue_head){
+		task_t *t = rsrc_dequeue(r);
+		task_wake(t,ERR_RESOURCE);
+	}
     
     r->type = RSRC_NONE;
     r->id = 0;
-    rmap[id].resource = &null_resource;
-    rmap[id].next = rfree;
+	rmap[id].resource = &null_resource;
+	rmap[id].next = rfree;
     rfree = id;
 }
 

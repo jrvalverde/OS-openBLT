@@ -97,16 +97,19 @@ void printf(char *fmt, ...);
 
 void keypress(int key)
 {
+	sem_acquire(active->lock);
+	char_to_virtscreen(active, key);
+	sem_release(active->lock);
+	
 	qsem_acquire(active->input_lock);
 	if (active->input_len < sizeof (active->input))
 	{
 		active->input[active->input_len++] = key;
-		sem_acquire(active->lock);
-		char_to_virtscreen(active, key);
-		sem_release(active->lock);
+		qsem_release(active->input_lock);
 		qsem_release(active->len_lock);
+	} else {
+		qsem_release(active->input_lock);
 	}
-	qsem_release(active->input_lock);
 }
 
 void vputs(struct virtscreen *vscr, char *s)

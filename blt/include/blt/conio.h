@@ -56,8 +56,8 @@ void con_goto(int x, int y);
 
 #define con_fgbg(fg,bg) con_attr((bg) << 4 | (fg));
 
-void snprintf(char *str, int len, char *fmt, ...);
-void va_snprintf(char *b, int l, char *fmt, va_list pvar);
+void snprintf(char *str, int len, const char *fmt, ...);
+void va_snprintf(char *b, int l, const char *fmt, va_list pvar);
 
 #define con_init() { con_attr(CON_WHITE); con_clear(); }
 

@@ -65,4 +65,5 @@
 #define BLT_SYS_thr_detach      34
 #define BLT_SYS_thr_join        35
 #define BLT_SYS_thr_spawn       36
+#define BLT_SYS_os_uber         37
 #endif

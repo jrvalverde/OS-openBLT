@@ -35,7 +35,7 @@
 typedef struct
 {
 	volatile int count;
-	volatile char mutex;
+	volatile int mutex;
 } qsem_t;
 
 qsem_t *qsem_create (int count);

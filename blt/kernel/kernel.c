@@ -223,7 +223,7 @@ void init_kspace(void)
 
 /* current is running -- we want to throw it on the run queue and
    transfer control to the preemptee */
-void preempt(task_t *task)
+void preempt(task_t *task, int status)
 {
 	uint32 *savestack = &(current->esp);
 
@@ -232,6 +232,7 @@ void preempt(task_t *task)
 
 	/* transfer control to the preemtee -- it had better not be on any queues */	
     current = task;
+	current->status = status;
     current->flags = tRUNNING;
 	current->scount++;
 	ktss->esp0 = current->esp0;    
@@ -370,26 +371,10 @@ void go_kernel(void)
         
 		rsrc_set_name((resource_t*)t,bdir->bd_entry[i].be_name);
 		
-        {
-            unsigned char *x =
-                (unsigned char *) (bdir->bd_entry[i].be_offset*4096+0x100074);
-        }
-        
         kprintf("task %X @ 0x%x, size = 0x%x (%s)",t->rsrc.id,
                 bdir->bd_entry[i].be_offset*4096+0x100000,
                 bdir->bd_entry[i].be_size*4096,
                 t->rsrc.name);
-
-        if(!strcmp(bdir->bd_entry[i].be_name,"ne2000")){
-            unsigned char *x =
-                (unsigned char *) (bdir->bd_entry[i].be_offset*4096+0x100020);
-            x[0] = 'i';
-            x[1] = 'p';
-            x[2] = IP[0];
-            x[3] = IP[1];
-            x[4] = IP[2];
-            x[5] = IP[3];            
-        }
     }
 
     kprintf("creating idle task...");    
@@ -437,6 +422,11 @@ struct _kinfo
     unsigned char *params;
 } *kinfo = (struct _kinfo *) 0x80000000;
 
+const static char *copyright1 =
+	"OpenBLT Release I (built "__DATE__ ", " __TIME__ ")";
+const static char *copyright2 =
+    "    Copyright (c) 1998-1999 The OpenBLT Dev Team.  All rights reserved.";
+ 
 void kmain(void)
 {
     int n;
@@ -448,28 +438,27 @@ void kmain(void)
     init_kspace();
     
     kprintf_init();
+#ifdef DPRINTF
+	dprintf_init();
+#endif
 
     kprintf("");
-    kprintf("OpenBLT Release I (built %s, %s)", __DATE__, __TIME__);
-    kprintf("    Copyright (c) 1998-1999 The OpenBLT Dev Team.  All rights reserved.");
+	kprintf (copyright1);
+	kprintf (copyright2);
     kprintf("");
+#ifdef DPRINTF
+	dprintf ("");
+	dprintf (copyright1);
+	dprintf (copyright2);
+	dprintf ("");
+	kprintf ("serial port is in dprintf mode");
+	dprintf ("serial port is in dprintf mode");
+	dprintf ("");
+#endif
+
     kprintf("system memory 0x%x",memsize*4096);
     
-
-    if(kinfo->params[0] == 'i' && kinfo->params[1] == 'p' &&
-       kinfo->params[2] == '=') {
-        kprintf("ip = %d.%d.%d.%d",
-                kinfo->params[3],kinfo->params[4],
-                kinfo->params[5],kinfo->params[6]
-                );
-        IP[0] = kinfo->params[3];
-        IP[1] = kinfo->params[4];
-        IP[2] = kinfo->params[5];
-        IP[3] = kinfo->params[6];        
-    }
-
     n = ((uint32) toppage) + 4080;
-    
     asm("mov %0, %%esp"::"r" (n) );
 	
 	n = SEL_UDATA | 3;

@@ -781,7 +781,7 @@ void fishmain(void)
     if((port_net_xmit = namer_find(nh,"net_xmit")) < 1) WITH_NET = 0;
   
     port_fish = port_create(0);
-    namer_register(nh, port_fish, "fish");
+    namer_register(nh, port_fish, "fish:tell");
     namer_delhandle(nh);
 
     vinit();
@@ -839,13 +839,17 @@ void fishmain(void)
         msg.data = data;
 
         if((size = port_recv(&msg)) > 0){
-			if(WITH_NET){
-				if(msg.src == port_net_xmit){
-					dofish((dfp_pkt_transfer *) data);
-				} else {
-					data[size]=0;
-					command(data);
-				}
+			if(WITH_NET && (msg.src == port_net_xmit)){
+				dofish((dfp_pkt_transfer *) data);
+			} else {
+				uint32 response = 0;
+				data[size]=0;
+				command(data);
+				msg.dst = msg.src;
+				msg.src = port_fish;
+				msg.size = 4;
+				msg.data = &response;
+				port_send(&msg);	
 			}
         }
     }

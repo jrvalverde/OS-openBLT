@@ -78,7 +78,7 @@ int bootfs_mount (struct superblock *super, const char *data, int silent)
 	printf ("bootfs_mount\n");
 #endif
 	sb_data = (struct bootfs_sb_data *) malloc (sizeof (struct bootfs_sb_data));
-	sb_data->d_bootdir_area = area_clone (2, 0, (void **) &sb_data->d_bootdir,
+	sb_data->d_bootdir_area = area_clone (3, 0, (void **) &sb_data->d_bootdir,
 		0);
 	sb_data->inode_list = NULL;
 

@@ -34,13 +34,13 @@
 
 int main(int argc, char **argv);
 void __libc_init_memory(unsigned int top_of_binary,
-                        unsigned int start_bss);
+                        unsigned int start_bss, unsigned int bss_length);
 
 extern char __bss_start[];
 extern char _end[];
 
 static char *strtab;
-static int symtablen;
+static int symtablen, top;
 static elf32_hdr_t *hdr;
 static elf32_sym_t *symtab;
 static void run_all (const char *name);
@@ -48,17 +48,22 @@ static void run_all (const char *name);
 void _start(int argc, char **argv)
 {
 	int res;
-
-	__libc_init_memory((unsigned int) _end, (unsigned int) __bss_start);
+	elf32_sec_hdr_t *last;
 
 	hdr = (elf32_hdr_t *) 0x1000;
 	symtab = _elf_find_section_data (hdr, ".symtab");
 	strtab = _elf_find_section_data (hdr, ".strtab");
 	symtablen = _elf_section_size (hdr, ".symtab") / sizeof (elf32_sym_t);
+	last = (elf32_sec_hdr_t *) ((unsigned int) hdr + hdr->e_shoff +
+		hdr->e_shentsize * (hdr->e_shnum - 1));
+	top = (unsigned int) hdr + last->sh_offset + last->sh_size;
+	
+	__libc_init_memory((unsigned int) top, (unsigned int)
+		_elf_find_section_data (hdr, ".bss"), _elf_section_size (hdr, ".bss"));
 
 	run_all ("_init");
 	res = main (argc, argv);
-	run_all ("_fini");
+	//run_all ("_fini");
 	os_terminate(res);
 }
 

@@ -88,7 +88,7 @@ void sleep(int ticks)
 #define p_voidptr(n) ((void *) esp[n])
 #define p_charptr(n) ((char *) esp[n])
 #define res r.eax
-extern char *screen;
+int ubercall (volatile uint32 *esp);
 
 void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 	volatile uint32 *esp)
@@ -99,25 +99,6 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 //	kprintf("%d %x:%d #%d@%x",current->rsrc.id,eip,cs,r.eax,(uint32)esp);
 	
     switch(r.eax){
-
-    case BLT_SYS_os_thread :
-    {
-        int i;    
-        task_t *t;
-        
-        t = new_thread(current->addr, p_uint32(1), 0);
-		t->text_area = current->text_area;
-        for(i=0;current->rsrc.name[i] && i<31;i++) t->rsrc.name[i] = current->rsrc.name[i];
-        if(i<30){
-            t->rsrc.name[i++] = '+';
-        }
-        t->rsrc.name[i] = 0;    
-        t->rsrc.owner = current;
-        
-        res = t->rsrc.id;
-    }
-    break;
-
     case BLT_SYS_os_terminate :
         //kprintf("task %X: os_terminate(%x)",current->rsrc.id,r.eax);
         if(p_uint32(1) == 0x00420023) {
@@ -183,6 +164,10 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 	
 	case BLT_SYS_os_identify :
 		res = rsrc_identify(p_uint32(1));
+		break;
+
+	case BLT_SYS_os_uber :
+		res = ubercall(esp);
 		break;
 		
     case BLT_SYS_sem_create :
@@ -259,8 +244,26 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 	case BLT_SYS_rsrc_find_name :
 		break;
 
-	case BLT_SYS_thr_create :
-		break;
+    case BLT_SYS_os_thread :
+	case BLT_SYS_thr_create : {
+        int i;    
+        task_t *t;
+        
+        t = new_thread(current->addr, p_uint32(1), 0);
+		if(t) {
+			t->text_area = current->text_area;
+			for(i=0;current->rsrc.name[i] && i<31;i++) {
+				t->rsrc.name[i] = current->rsrc.name[i];
+			}
+			if(i<30) t->rsrc.name[i++] = '+';
+			t->rsrc.name[i] = 0;    
+			t->rsrc.owner = current;        
+			res = t->rsrc.id;
+		} else {
+			res = -1;
+		}
+    }
+    break;
 
 	case BLT_SYS_thr_resume :
 		break;
@@ -287,12 +290,14 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 		 */
  		i = -1;
 		orig_argv = p_voidptr (3);
-		while (orig_argv[i] != NULL)
-			i++;
+		while (orig_argv[i] != NULL) i++;
+		
 		temp_argv = kmallocB (i * sizeof (char *));
-		for (j = total = 0; j < i; j++)
-		{
-			temp_argv[j] = kmallocB (total += len = strlen (orig_argv[j]) + 1);
+		
+		for (j = total = 0; j < i; j++) {
+			len = strlen(orig_argv[j]) + 1;
+			total += len;
+			temp_argv[j] = kmallocB(len);
 			strlcpy (temp_argv[j], orig_argv[j], len);
 		}
 
@@ -303,8 +308,7 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 			total = (total & ~3) ? (total & ~3) + 4 : total;
 			c = (char *) (0x400000 - total);
 			argv = (char **) (c - i * sizeof (char *));
-			for (j = 0; j < i; j++)
-			{
+			for (j = 0; j < i; j++) {
 				strcpy (c, temp_argv[j]);
 				argv[j] = c;
 				c += strlen (temp_argv[j]) + 1;
@@ -316,9 +320,23 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 			*(esp + 2) = (uint32) argv;
 		}
 
-		for (j = 0; j < i; j++)
-			kfreeB (strlen (temp_argv[j] + 1), temp_argv[j]);
+		for (j = 0; j < i; j++) {
+			kfreeB(strlen(temp_argv[j]) + 1, temp_argv[j]);
+		}
 		kfreeB (i * sizeof (char *), temp_argv);
 		break;
     }
 }
+
+int ubercall (volatile uint32 *esp)
+{
+	switch (p_uint32 (0))
+	{
+		case UBER_NULL_REQUEST :
+			break;
+
+		default:
+			return -1;
+	}
+}
+

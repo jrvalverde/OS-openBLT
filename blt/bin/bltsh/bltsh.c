@@ -47,7 +47,6 @@ void run(void)
     __libc_init_console ();
     __libc_init_vfs ();
     execve (params[0], params, NULL);
-	//printf ("execve failed %d\n", errno);
 	printf ("bltsh: %s: %s\n", params[0], strerror (errno));
     os_terminate (1);
 }
@@ -82,9 +81,11 @@ int main (void)
 	char line[256], *c;
 	int fd, len, space, i, p_argc;
 
+	__libc_init_fdl ();
 	__libc_init_console ();
 	__libc_init_vfs ();
 	__libc_init_console_input ();
+	printf ("\n");
 
 	for (;;)
 	{

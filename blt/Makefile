@@ -35,6 +35,15 @@ netboot::
 image:
 	./util/bootmaker boot/openblt.ini boot/openblt.boot
 
+floppy:
+	./util/bootmaker boot/openblt.ini boot/openblt.boot -floppy
+
+bfloppy: floppy
+	dd if=boot/openblt.boot of=/dev/disk/floppy/raw bs=18k
+	
+lfloppy: floppy
+	dd if=boot/openblt.boot of=/dev/fd0 bs=18k
+
 run: image
 	./util/netboot boot/openblt.boot $(IP)
 

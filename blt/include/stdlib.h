@@ -45,5 +45,8 @@ void _qsort (void *base, size_t nmembers, size_t membsize,
 void qsort (void *base, size_t nmembers, size_t membsize,
 	int (*compar)(const void *, const void *));
 
+int _atoi (const char *a);
+int atoi (const char *a);
+
 #endif
 

@@ -39,7 +39,8 @@ int port_create(int restrict)
 
         /* create new port */
     p = kmalloc(port_t);
-    
+    p->sendqueue = kmalloc(resource_t);
+	
     p->msgcount = 0;
     p->first = p->last = NULL;
     p->slaved = 0;
@@ -48,6 +49,7 @@ int port_create(int restrict)
 	p->restrict = restrict;
 	
 	rsrc_bind(&p->rsrc, RSRC_PORT, current);
+	rsrc_bind(p->sendqueue, RSRC_QUEUE, current);
     return p->rsrc.id;
 }
 
@@ -55,12 +57,14 @@ int port_destroy(int port)
 {
     port_t *p;
     if(!(p = rsrc_find_port(port))) return ERR_RESOURCE;
-    if(p->rsrc.owner != current) return ERR_PERMISSION;
+//    if(p->rsrc.owner != current) return ERR_PERMISSION;
 
     if(p->refcount == 1) {                
             /* destroy port */
 		rsrc_release(&p->rsrc);
-        kfree(port_t,p); /* XXX check */
+		rsrc_release(p->sendqueue);
+		kfree(resource_t,p->sendqueue);
+        kfree(port_t,p); 
         return ERR_NONE;    
     }
 
@@ -76,7 +80,6 @@ uint32 port_option(uint32 port, uint32 opt, uint32 arg)
     if(p->rsrc.owner != current) return ERR_PERMISSION;
 
     if(opt == PORT_OPT_SETRESTRICT){
-/*XXX        p->restrict = arg;        */
         p->restrict = arg;
         return ERR_NONE;        
     }
@@ -152,6 +155,13 @@ int port_send(msg_hdr_t *mh)
 /*        if((p->restrict) &&
            (p->restrict != mh->src)) return ERR_PERMISSION;  XXX */      
     }
+
+	while(p->msgcount > 15){
+		int status;
+        if(p->nowait) return ERR_WOULD_BLOCK;
+		if(status = wait_on(p->sendqueue)) return status;
+	}
+		
         /* ignore invalid sizes/locations */
     if( (size < 1) ||
         (((uint32) msg) > 0x400000) ||
@@ -174,9 +184,10 @@ int port_send(msg_hdr_t *mh)
 /*    kprintf("task %X: copyin %x -> %x (%d)\n",current->rid,
             (int) msg, (int) m->data,  size);*/
     
-    for(i=0;i<size;i++)
+    for(i=0;i<size;i++){
         ((unsigned char *) m->data)[i] = *((unsigned char *) msg++);
-
+	}
+	
     m->from_port = mh->src;
     m->to_port = mh->dst;    
     m->size = size;
@@ -195,12 +206,12 @@ int port_send(msg_hdr_t *mh)
 	if(p->slaved){
 		port_t *p0 = rsrc_find_port(p->slaved);
 		if(p0){
-			task_t *task = rsrc_dequeue((resource_t*)p0);
-			if(task) rsrc_enqueue(run_queue, task);
+			task_t *task = rsrc_dequeue(&p0->rsrc);
+			if(task) task_wake(task,ERR_NONE);
 		}
 	} else {
-		task_t *task = rsrc_dequeue((resource_t*)p);
-		if(task) rsrc_enqueue(run_queue, task);
+		task_t *task = rsrc_dequeue(&p->rsrc);
+		if(task) task_wake(task,ERR_NONE);
 	}	
     
     return size;
@@ -229,9 +240,9 @@ int port_recv(msg_hdr_t *mh)
 
         /* no messages -- sleep */
     while(!p->msgcount) {
+		int status;
         if (p->nowait) return ERR_WOULD_BLOCK;
-		
-		wait_on((resource_t*)p);	/* XXX check status */
+		if(status = wait_on(&p->rsrc)) return status;
     }
     
     m = p->first;

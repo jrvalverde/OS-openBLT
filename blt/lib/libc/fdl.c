@@ -42,7 +42,7 @@ weak_alias (_write, write)
 weak_alias (_ioctl, ioctl)
 weak_alias (_close, close)
 
-void _init (void)
+void __libc_init_fdl (void)
 {
 	int i;
 
@@ -52,7 +52,7 @@ void _init (void)
 	fd_table_lock = qsem_create (1);
 }
 
-void _fini (void)
+void __libc_fini_fdl (void)
 {
 	free (fd_table);
 	qsem_destroy (fd_table_lock);

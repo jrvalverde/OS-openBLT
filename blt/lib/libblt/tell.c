@@ -26,57 +26,56 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <blt/os.h>
-#include "aspace.h"
-#include "kernel.h"
-#include "thread.h"
+#include <blt/syscall.h>
+#include <blt/libsyms.h>
+#include <blt/tell.h>
 
-int thr_detach (unsigned int eip)
+static char *name;
+static volatile int ready = 0;
+static void (*callback)(const char *);
+
+weak_alias (_tell_init, tell_init)
+
+void __tell_impl (void)
 {
-	int i, clone;
-	void *ptr, *phys, *src, *dst;
-	aspace_t *a;
-	task_t *t;
-	area_t *text, *orig_heap;
+	char *buf, junk;
+	int port, nh, len;
+	msg_hdr_t mh;
 
-	a = aspace_create ();
-	text = rsrc_find_area (current->text_area);
-	ptr = kgetpages2 (text->length, 3, (uint32 *) &phys);
-	for (i = 0; i < text->length * 0x1000; i++)
-		*((char *) ptr + i) = *((char *) 0x1000 + i);
+	port = port_create (0);
+	buf = malloc (len = TELL_MAX_LEN);
+	strlcpy (buf, name, len);
+	strlcat (buf, ":tell", len);
+	nh = namer_newhandle ();
+	namer_register (nh, port, buf);
+	namer_delhandle (nh);
+	ready = 1;
 
-	t = new_thread (a, eip, 0);
-	//t->rsrc.owner = current;
-	t->text_area = area_create (a, text->length * 0x1000, 0x1000, &phys,
-		0x1010);
-	//a->heap_id = area_create (a, 0x2000, 0x1000 + text->length * 0x1000,
-	//	&ptr, 0);
-	orig_heap = rsrc_find_area (current->addr->heap_id);
-	a->heap_id = area_create (a, orig_heap->length * 0x1000, 0x1000 +
-		text->length * 0x1000, &ptr, 0);
-	clone = area_clone (current->addr, a->heap_id, 0, &dst, 0);
-	for (i = 0; i < orig_heap->length * 0x1000; i++)
-		*((char *) dst + i) = *((char *) (orig_heap->virt_addr * 0x1000) + i);
-	area_destroy (a, clone);
-
-	strlcpy (t->rsrc.name, current->rsrc.name, sizeof (t->rsrc.name));
-	strlcat (t->rsrc.name, "+", sizeof (t->rsrc.name));
-
-	rsrc_set_owner (&a->rsrc, t);
-	rsrc_set_owner (&t->rsrc, t);
-	return t->rsrc.id;
+	for (;;)
+	{
+		mh.src = 0;
+		mh.dst = port;
+		mh.data = buf;
+		mh.size = len;
+		port_recv (&mh);
+		(*callback) (buf);
+		mh.dst = mh.src;
+		mh.src = port;
+		mh.data = &junk;
+		mh.size = 1;
+		port_send (&mh);
+	}
 }
 
-int thr_join (int thr_id, int options)
+int _tell_init (char *n, void (*c)(const char *))
 {
-	task_t *task = rsrc_find_task(thr_id);
-	
-	if(task) {
-		wait_on((resource_t *)task);
-		return ERR_NONE;
-	} else {
-		return ERR_RESOURCE;
-	}
+	name = n;
+	callback = c;
+	os_thread (__tell_impl);
+	while (!ready) ;
+	return ready;
 }
 

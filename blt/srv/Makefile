@@ -2,10 +2,6 @@
 
 all: namer console2 ne2000 video vfs init fish
 
-console::
-	@echo "--- srv/console ---------"
-	@cd console ; $(MAKE)
-
 console2::
 	@echo "--- srv/console2 --------"
 	@cd console2 ; $(MAKE)
@@ -35,7 +31,6 @@ init::
 	@cd init ; $(MAKE)
 
 clean:
-	@cd console ; $(MAKE) clean
 	@cd console2 ; $(MAKE) clean
 	@cd namer ; $(MAKE) clean
 	@cd ne2000 ; $(MAKE) clean

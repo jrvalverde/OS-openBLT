@@ -43,25 +43,21 @@
 
 char *kprintf_lock = 0;
 
-void va_snprintf(char *b, int l, char *fmt, va_list pvar);
+void va_snprintf(char *b, int l, const char *fmt, va_list pvar);
 
-#ifdef USE_SERIAL
-void krefresh(void)
-{
-}
-
-unsigned char *screen = NULL;
-
-void kprintf_init(void)
-{
-	screen = (unsigned char *) kmappages(
-#ifdef MONO
-										 0xB0, 
-#else 
-										 0xB8, 
+/* catch bad configurations */
+#if defined (SERIAL_DEBUG) && defined (DPRINTF)
+#error cannot use both serial debugging and dprintf
 #endif
-										 2, 3);
 
+#if (defined (SERIAL_DEBUG) || defined (DPRINTF)) && !defined (SERIAL)
+#error cannot use serial debugging or dprintf without serial port code
+#endif
+
+#ifdef SERIAL
+
+void dprintf_init(void)
+{
 	outb(0, combase + 4);
     outb(0, combase + 0);
     outb(0x83, combase + 3);
@@ -91,6 +87,25 @@ static void ser_puts(char *s)
     }
 }
 
+#endif
+
+#ifdef SERIAL_DEBUG
+void krefresh(void)
+{
+}
+
+unsigned char *screen = NULL;
+
+void kprintf_init(void)
+{
+	screen = (unsigned char *) kmappages(
+#ifdef MONO
+										 0xB0, 
+#else 
+										 0xB8, 
+#endif
+										 2, 3);
+}
 
 char *kgetline(char *line, int len)
 {
@@ -132,7 +147,7 @@ char *kgetline(char *line, int len)
 }
 
 static char Line[128];
-void kprintf(char *fmt, ...)
+void kprintf(const char *fmt, ...)
 {
     va_list pvar;    
     va_start(pvar,fmt);
@@ -145,7 +160,7 @@ void kprintf(char *fmt, ...)
     ser_puts(Line);
     ser_puts("\r\n");
 #ifdef __SMP__
-		v (&kprintf_lock);
+	v (&kprintf_lock);
 #endif
 }
 
@@ -196,7 +211,7 @@ void krefresh(void)
 }
 
 static char line[80];
-void kprintf(char *fmt, ...)
+void kprintf(const char *fmt, ...)
 {
     va_list pvar;    
     va_start(pvar,fmt);
@@ -215,6 +230,26 @@ void kprintf(char *fmt, ...)
 #endif
 }
 
+#ifdef DPRINTF
+
+void dprintf(const char *fmt, ...)
+{
+    va_list pvar;    
+    va_start(pvar,fmt);
+#ifdef __SMP__
+	p (&kprintf_lock);
+#endif
+    va_snprintf(line,80,fmt,pvar);
+    line[79]=0;
+    va_end(pvar);
+    ser_puts(line);
+    ser_puts("\r\n");
+#ifdef __SMP__
+	v (&kprintf_lock);
+#endif
+}
+
+#endif
 
 void movecursor (int x, int y)
 {

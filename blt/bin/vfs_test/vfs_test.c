@@ -113,11 +113,22 @@ int main (void)
 	struct stat buf;
 	char c;
 	void *ptr;
-	int (*strlen_fn)(char *);
+	int (*fn1)(char *), (*fn2)(void);
 
 	__libc_init_console ();
 	__libc_init_vfs ();
 
+	sem = qsem_create (0);
+	sem = qsem_create (0);
+	i = sem_create (0);
+	printf ("sem_ is %d\n", i);
+	printf ("-- %d %d\n", sem->count, sem->mutex);
+	qsem_acquire (sem);
+	//sem_acquire (i);
+	printf ("-- %d %d\n", sem->count, sem->mutex);
+	qsem_acquire (sem);
+	//sem_acquire (i);
+	printf ("-- %d %d\n", sem->count, sem->mutex);
 	printf ("hello from vfs_test\n");
 /*
 	dir1 = opendir ("/");
@@ -165,13 +176,19 @@ int main (void)
 		printf ("we got %d\n", c);
 	}
 */
-
-	ptr = dlopen ("/boot/libc.so", 0);
-	printf ("ptr is %x\n", ptr);
-	strlen_fn = dlsym (ptr, "strlen");
-	printf ("strlen is %x\n", strlen_fn);
-	printf ("len is %d\n", (*strlen_fn) ("foobarbaz"));
-	dlclose (ptr);
+/*
+	printf ("opening /boot/foo.so\n");
+	ptr = dlopen ("/boot/foo.so", 0);
+	if (ptr != NULL)
+	{
+		fn2 = dlsym (ptr, "bar");
+		(*fn2) ();
+		printf ("closing\n");
+		dlclose (ptr);
+	}
+	else
+		printf ("error: %s\n", dlerror ());
+*/
 
 	__libc_fini_vfs ();
 	return 0;

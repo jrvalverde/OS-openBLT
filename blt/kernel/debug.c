@@ -47,6 +47,7 @@ extern resnode_t *resource_list;
 static char *tstate[] =
 { "KERNL", "RUNNG", "READY", "DEAD ", "WAIT ", "S/IRQ", "S/TMR" };
 
+uint32 readnum(const char *s);
 
 void printres(resource_t *r)
 {
@@ -86,6 +87,22 @@ void dumprsrc(resnode_t *rn)
 	while(rn) {
 		printres(rn->resource);
 		rn = rn->next;
+	}
+}
+
+void dumponersrc(const char *num)
+{
+	int n;
+	resnode_t *rn;
+
+	n = readnum (num);
+	rn = resource_list;
+	while(rn) {
+		if (rn->resource->id == n) {
+			printres(rn->resource);
+			break;
+		}
+		else rn = rn->next;
 	}
 }
 
@@ -195,7 +212,8 @@ static void dump(uint32 addr, int sections)
 
 static char *hex = "0123456789abcdef";
 
-uint32 readhex(char *s)
+#define atoi readhex
+uint32 readhex(const char *s)
 {
     uint32 n=0;
     char *x;
@@ -213,7 +231,7 @@ uint32 readhex(char *s)
     return n;
 }
 
-uint32 readnum(char *s)
+uint32 readnum(const char *s)
 {
 	uint32 n=0;
 	if((*s == '0') && (*(s+1) == 'x')) return readhex(s+2);
@@ -288,6 +306,42 @@ void dumpqueue(int n)
 	kprintf("no such resource %d",n);
 }
 
+static int ipchksum(unsigned short *ip, int len)
+{
+	unsigned long sum = 0;
+
+	len >>= 1;
+	while (len--) {
+		sum += *(ip++);
+		if (sum > 0xFFFF)
+		sum -= 0xFFFF;
+	}
+	return((~sum) & 0x0000FFFF);
+}
+
+void checksum (char *range)
+{
+	char *s;
+	unsigned int i, good, begin, end;
+
+	if (!*range)
+		return;
+	for (i = good = 0; (i < strlen (range)) && !good; i++)
+	{
+		if (range[i] == ' ')
+		{
+			*(s = range + i) = 0;
+			s++;
+			good = 1;
+		}
+	}
+	if ((!good) || !*s)
+		return;
+	begin = atoi (range);
+	end = atoi (s);
+	kprintf ("%x", ipchksum ((unsigned short *) begin, end - begin));
+}
+
 static char linebuf[80];
 void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
 {
@@ -296,19 +350,11 @@ void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
 	
     kprintf("OpenBLT Kernel Debugger");
 
-#if 0
-	asm("pushl %%ds; popl %0":"=r"(n));
-	kprintf("ds = %x",n);
-	asm("pushl %%cs; popl %0":"=r"(n));
-	kprintf("cs = %x",n);
-	asm("pushl %%ss; popl %0":"=r"(n));
-	kprintf("ss = %x",n);
-#endif	
-
     for(;;){
         krefresh();
         line = kgetline(linebuf,80);
 		
+        if(!strncmp(line,"resource ", 9)) { dumponersrc(line+9); continue; }
         if(!strcmp(line,"resources")) { dumprsrc(resource_list); continue; }
 		if(!strncmp(line,"queue ",6)) { dumpqueue(readnum(line+6)); continue; }
         if(!strcmp(line,"tasks")) { dumptasks(); continue; }
@@ -320,6 +366,7 @@ void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
         if(!strncmp(line,"dump ",5)) { dump(readnum(line+5),16); continue; }
         if(!strncmp(line,"aspace ",7)) { dumpaddr(readnum(line+7)); continue; }
         if(!strcmp(line,"reboot")) { reboot(); }
+        if(!strncmp(line,"checksum ",9)) { checksum(line+9); continue; }
         if(!strcmp(line,"exit")) break;
         if(!strcmp(line,"x")) break;
         if(!strcmp(line,"c")) break;
