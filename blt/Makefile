@@ -8,10 +8,10 @@ endif
 SUBDIRS		:= lib kernel srv boot bin util
 
 image: subdirs
-	./util/bootmaker boot/openblt.ini boot/openblt.boot
+	./util/bootmaker $(INIFILES) $(LOCALINIFILES) -o boot/openblt.boot
 
 floppy: subdirs
-	./util/bootmaker boot/openblt.ini boot/openblt.boot -floppy
+	./util/bootmaker $(INIFILES) $(LOCALINIFILES) -o boot/openblt.boot --floppy
 
 fimage: floppy
 	dd if=/dev/zero of=fd.img bs=1024 count=1440
@@ -27,7 +27,7 @@ run: image
 	./util/netboot boot/openblt.boot $(IP)
 
 go:
-	./util/bootmaker boot/openblt.ini boot/openblt.boot
+	./util/bootmaker $(INIFILES) $(LOCALINIFILES) -o boot/openblt.boot
 	./util/netboot boot/openblt.boot $(IP)
 
 all::

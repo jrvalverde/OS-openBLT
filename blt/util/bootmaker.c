@@ -142,16 +142,18 @@ unsigned int fix(unsigned int x)
 #define stLHS 3
 #define stRHS 4
 
+section *first = NULL;
+section *last = NULL;
+
 section *load_ini(char *file)
 {
     char *data,*end;
     int size;
     int state = stNEWLINE;
-    section *first, *last, *cur;
+	section *cur;
+	
     char *lhs,*rhs;
     
-    first = last = NULL;
-        
     if(!(data = loadfile(file,&size))){
         return NULL;
     }
@@ -357,25 +359,56 @@ void makeboot(section *s, char *outfile)
     
 }
 
-int main(int argc, char *argv[])
+int main(int argc, char **argv)
 {
+	char *file = NULL;
     section *s;
     
-    if(argc < 3){
-        fprintf(stderr,"usage: %s <inifile> <bootfile>\n",argv[0]);
+    if(argc < 2){
+usage:
+        fprintf(stderr,"usage: %s [ --floppy | -f ] [ <inifile> ... ] -o <bootfile>\n",argv[0]);
         return 1;
     }
 
+	argc--;
+	argv++;
+	
+	while(argc){
+		if(!strcmp(*argv,"--floppy")){
+			make_floppy = 1;
+		} else if(!strcmp(*argv,"-o")){
+			argc--;
+			argv++;
+			if(argc){
+				file = *argv;
+			} else {
+				goto usage;
+			}
+		} else {
+			if(load_ini(*argv) == NULL){
+				fprintf(stderr,"warning: cannot load '%s'\n",*argv);
+			}
+		}
+		argc--;
+		argv++;
+	}
+	
+	
     if((argc > 3) && !strcmp(argv[3],"-floppy")){
         make_floppy = 1;
     }
+
+	if(!file){
+		fprintf(stderr,"error: no output specified\n");
+		goto usage;
+	}
+	
+	if(!first){
+		fprintf(stderr,"error: no data to write?!\n");
+		goto usage;
+	}
+	
+	makeboot(first,file);
     
-    if(s = load_ini(argv[1])){
-        makeboot(s,argv[2]);
-    } else {
-        fprintf(stderr,"error: can't read %s\n",argv[1]);
-    }
-    
-    return 0;
-    
+    return 0;    
 }
