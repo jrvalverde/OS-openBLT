@@ -36,12 +36,11 @@ int main (int argc, char **argv)
 	void *cookie;	
 	fb_info *fb = &fb_mga1x64;
 	
-	if(fbar **argv)
-{
-	void *cookie;	
-	fb_info *fb = &fb_mga1x64;
+	if(fb->find(&cookie) == 0){
+		printf("Frame Buffer \"%s\" found.\n",fb->name);
+		fb->init(cookie);
+	}
 	
-	if(fbar **argv)
-{
-	void *cookie;	
-	fb_info *fb = &fb_
+	return 0;
+}
+
