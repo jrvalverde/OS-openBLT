@@ -1,4 +1,6 @@
-/* Copyright 2000, Sidney Cammeresi.  All rights reserved.
+/* $Id$
+**
+** Copyright 2000, Sidney Cammeresi.  All rights reserved.
 ** Distributed under the terms of the OpenBLT License
 */
 
@@ -71,11 +73,14 @@ void page_fault (uint32 number, regs r, uint32 error, uint32 eip, uint32 cs,
 
 	/* wake up the kernel pager */
 	current->flags = tSLEEP_PAGING;
-	sem_release (pager_sem_no); /* causes reschedule */
+	pager_sem->count++;
+	task_wake (pager_task, ERR_NONE); /* XXX: sem_release requeues us */
+	swtch ();
 
 	/* paging is done; check result */
 	if (current->status == ERR_SEGV)
 	{
+		current->flags = tDEAD;
 		k_debugger (&r, eip, cs, eflags);
 		terminate ();
 	}

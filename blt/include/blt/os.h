@@ -56,7 +56,14 @@
 #define RIGHT_MODE_DISSOLVE  0x0040  /* When the owner thread terminates,    */
                                      /* the right is destroyed               */
 
-#define AREA_PHYSMAP        0x00001010
+#define AREA_PHYSMAP         0x00000001
+#define AREA_UNMAPPED        0x00000002
+#define AREA_COPY_ON_WRITE   0x00000004
+#define PAGE_PRESENT         0x00000001
+#define PAGE_WRITABLE        0x00000002
+#define PAGE_USER            0x00000004
+#define PAGE_NORMAL_KERNEL   0x00000003
+#define PAGE_NORMAL_USER     0x00000007
 
 #define JOIN_NO_HANG        0x00000001
 
