@@ -48,4 +48,6 @@ extern resource_t *reaper_queue;
 extern resource_t *timer_queue;
 extern team_t     *kernel_team;
 
+void user_debug(regs *r, uint32 *eip, uint32 *eflags);
+
 #endif

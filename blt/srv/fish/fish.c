@@ -165,7 +165,7 @@ void pingtank(int tx, int ty)
 		msg.dst = port_net;
 		msg.size = sizeof(dfp_base)+8;
 		msg.data = &f;
-		port_send(&msg);
+		old_port_send(&msg);
 	}
 }
 
@@ -191,7 +191,7 @@ void initiate(dfp_pkt_transfer *send, int tx, int  ty)
 		msg.dst = port_net;
 		msg.size = DFP_SIZE_TRANSFER + 8;
 		msg.data = &f;
-		port_send(&msg);
+		old_port_send(&msg);
 	}
 
 }
@@ -239,7 +239,7 @@ void dofish(dfp_pkt_transfer *dfp)
         msg.dst = port_net;
         msg.size = sizeof(dfp_base)+8;
         msg.data = &f;
-        port_send(&msg);
+        old_port_send(&msg);
 
         
         break;
@@ -289,7 +289,7 @@ void dofish(dfp_pkt_transfer *dfp)
         msg.dst = port_net;
         msg.size = DFP_SIZE_CONFIRM + 8;
         msg.data = &f;
-        port_send(&msg);
+        old_port_send(&msg);
         break;
 
     case DFP_PKT_ACK_FISH :
@@ -325,7 +325,7 @@ void dofish(dfp_pkt_transfer *dfp)
                 msg.dst = port_net;
                 msg.size = DFP_SIZE_TRANSFER + 8;
                 msg.data = &f;
-                port_send(&msg);
+                old_port_send(&msg);
                 st_sent++;
                 goto donesync;
             }
@@ -520,7 +520,7 @@ void vloop(void)
                 pingtank(cnxn[i].tx,cnxn[i].ty);
             }
         }
-		os_sleep(snooze);
+		os_sleep(snooze * 9000); /* 9ms increments */
         vga_fillX();
 #ifdef LOGGING               
         sem_acquire(sem_msgs);
@@ -773,12 +773,12 @@ void fishmain(void)
 		
 		cmd.cmd = NET_IP;
 		cmd.port = 0;
-		port_send(&msg);
+		old_port_send(&msg);
 		msg.src = port_net_xmit;
 		msg.dst = port_fish;
 		msg.size = 4;
 		msg.data = ip;
-		port_recv(&msg);
+		old_port_recv(&msg);
 
 		lprintf("IP = %d.%d.%d.%d\n",ip[0],ip[1],ip[2],ip[3]);
 		
@@ -794,7 +794,7 @@ void fishmain(void)
 		
 		cmd.cmd = NET_CONNECT;
 		cmd.port = 5049;
-		port_send(&msg);
+		old_port_send(&msg);
 	} else {
 		lprintf("no network support\n");
 	}
@@ -810,7 +810,7 @@ void fishmain(void)
         msg.size = 1500;
         msg.data = data;
 
-        if((size = port_recv(&msg)) > 0){
+        if((size = old_port_recv(&msg)) > 0){
 			if(WITH_NET && (msg.src == port_net_xmit)){
 				dofish((dfp_pkt_transfer *) data);
 			} else {
@@ -821,7 +821,7 @@ void fishmain(void)
 				msg.src = port_fish;
 				msg.size = 4;
 				msg.data = &response;
-				port_send(&msg);	
+				old_port_send(&msg);	
 			}
         }
     }

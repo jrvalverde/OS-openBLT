@@ -9,6 +9,10 @@
 #include <blt/conio.h>
 #include <blt/qsem.h>
 
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "net.h"
 
 #define NULL ((void *) 0)
@@ -21,8 +25,6 @@ int find_pci(uint16 vendor, uint16 device, int *iobase, int *irq);
 #define NIC_IRQ		5
 #define NIC_ADDR	0x300
 
-static unsigned char *loadip = (unsigned char *) 0x1020;
-
 static snic TheSNIC;
 int snic_irq = NIC_IRQ;
 int snic_addr = NIC_ADDR;
@@ -34,10 +36,8 @@ static unsigned char IP[4] = { 10, 113, 216, 6 };	/* we get our ip from the boot
 /* messaging */
 static int port_isr = 0;
 static int port_xmit = 0;
-/*static int port_xmit_done = 0;*/
 
 static qsem_t *sem_xmit_done = NULL;
-static int port_dispatch = 0;
 static int port_net = 0;
 
 qsem_t *mutex = NULL;
@@ -49,8 +49,6 @@ qsem_t *sem_ring = NULL;
 void kprintf(char *fmt,...)
 {
 }
-
-#define printf __libc_printf
 
 #define trace(a, b) if (a >= LOG_LEVEL) printf("ne2000: %s\n", b);
 
@@ -69,11 +67,15 @@ typedef struct _pbuf {
                        
 pbuf *p_next = NULL;
 
-struct _pmap {
-    struct _pmap *next;;
+typedef struct pmap pmap;
+
+struct pmap {
+    struct pmap *next;
     int udp_port;
     int blt_port;
-} pmap[10];
+};
+
+pmap *pmaps = NULL;
 
 pbuf *p_discard;
 
@@ -82,7 +84,6 @@ void init_ring(void)
     int i;
     pbuf *p;
     p_next = NULL;
-    pmap[0].udp_port = 0;
     
     for(i=0;i<RINGSIZE;i++){
         p = (pbuf *) malloc(sizeof(pbuf));        
@@ -148,10 +149,9 @@ pbuf *get_pbuf(void)
 /* called after a pbuf is xmit'd */
 void free_buffer(packet_buffer *ptr)
 {
-    msg_hdr_t mh;
     pbuf *P = pb_to_ring(ptr);
 
-trace(1, "free_buffer");
+	trace(1, "free_buffer");
 
     if(P == p_discard) return;
 
@@ -160,14 +160,7 @@ trace(1, "free_buffer");
     p_next = P;
     qsem_release(sem_ring);
 
-    qsem_release(sem_xmit_done);
-    
-/*    mh.flags = 0;
-    mh.src = port_isr;
-    mh.dst = port_xmit_done;
-    mh.size = 4;
-    mh.data = &mh.flags;
-    if(port_send(&mh) != 4) printf("free_buffer: blargh!"); */
+    qsem_release(sem_xmit_done);    
 }
 
 int ticks = 0;
@@ -201,7 +194,7 @@ xmit(pbuf *P)
     mh.dst = port_xmit;
     mh.size = 4;
     mh.data = &P;
-    if((i = port_send(&mh)) != 4) printf("xmit: blargh! %d\n",i);
+    if((i = old_port_send(&mh)) != 4) printf("xmit: blargh! %d\n",i);
     
 }
 
@@ -331,21 +324,25 @@ handle_icmp(icmp_packet *icmp)
 void
 handle_udp(udp_packet *udp, pbuf *packet)
 {
+	pmap *m;
     msg_hdr_t msg;
     int i;
     
-    if(pmap[0].udp_port == ntohs(udp->udp.udp_dst)){
-        msg.src = port_isr;
-        msg.dst = pmap[0].blt_port;
-        msg.flags = 0;
-        msg.size = ntohs(udp->udp.udp_len) - 8;
-        msg.data = udp->data;
+	for(m = pmaps; m; m = m->next){
+		if(m->udp_port == ntohs(udp->udp.udp_dst)){
+			msg.src = port_isr;
+			msg.dst = m->blt_port;
+			msg.flags = 0;
+			msg.size = ntohs(udp->udp.udp_len) - 8;
+			msg.data = udp->data;
 
-        if((i = port_send(&msg)) <0)
-            printf("^&%$&^ %d / %d / %x\n",i,msg.size,msg.data);
-        
-        
-    }
+			if((i = old_port_send(&msg)) <0) {	
+				/* XXX: if resource is gone, tear down this mapping */
+				/* printf("aieee %d / %d / %x\n",i,msg.size,msg.data);  */
+			}
+		}
+	}
+	
     
 /*    printf("UDP %d.%d.%d.%d:%d -> %d.%d.%d.%d:%d\n",
            src[0],src[1],src[2],src[3],ntohs(udp->udp.udp_src),
@@ -357,19 +354,17 @@ handle_udp(udp_packet *udp, pbuf *packet)
 void
 handle_tcp(tcp_packet *tcp, pbuf *packet)
 {
-trace(2, "handle_tcp");
-/* full of worms */
+		trace(2, "handle_tcp");
+			/* full of worms */
 }
 
 
 void
 handle_ip(ip_packet *ip, pbuf *packet)
 {
-    unsigned char *src = (unsigned char *) &(ip->ip.ip_src);
     unsigned char *dst = (unsigned char *) &(ip->ip.ip_dst);
-    static unsigned char bcip[4] = { 255, 255, 255, 255 };
     
-trace(2, "handle_ip");
+	trace(2, "handle_ip");
 
     if(!memcmp(dst,IP,4) || (dst[3] == 0xFF)){ /*!memcmp(dst,bcip,4)){*/
 #ifdef DEBUG
@@ -412,30 +407,6 @@ trace(1, "receive");
     free_buffer_data(&(packet->pd));
 }
 
-#if 0
-void
-xxreceive(void *cb, packet_data *packet)
-{
-    msg_hdr_t msg;
-    int i;
-    pbuf *P = pd_to_ring(packet);
-
-    if(P == p_discard) return;
-    
-    msg.src = port_isr;
-    msg.dst = port_dispatch;
-    msg.flags = 0;
-    msg.size = 4;
-    msg.data = &P;
-
-    if((i = port_send(&msg)) != 4){
-        printf("receive: dispatch send failed %d\n",i);
-        free_buffer_data(packet);
-    }
-}
-#endif
-
-
 #define NET_CONNECT  1
 #define NET_SEND     2
 #define NET_IP       3
@@ -449,7 +420,7 @@ typedef struct
 
 unsigned char bcast[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
-void send_udp(int port, unsigned char *ip, void *data, int size)
+void send_udp(int src_port, int dst_port, unsigned char *ip, void *data, int size)
 {
     pbuf *P;
     udp_packet *udp;
@@ -474,8 +445,8 @@ void send_udp(int port, unsigned char *ip, void *data, int size)
     memcpy(&(udp->ip.ip_dst),bcast,4);
     udp->ip.ip_chk = ipchksum(&(udp->ip),sizeof(net_ip));
     
-    udp->udp.udp_src = htons(5049);
-    udp->udp.udp_dst = htons(port);
+    udp->udp.udp_src = htons(src_port);
+    udp->udp.udp_dst = htons(dst_port);
     udp->udp.udp_len = htons(size + 8);
     udp->udp.udp_chk = 0;
     
@@ -495,11 +466,6 @@ control(void)
     char cbuf[1500];
     net_cmd *cmd = (net_cmd *) cbuf;
     int size;
-    
-    namer_register(port_net = port_create(0,"net_listen_port"),"net");
-
-if (port_net)
-trace(1, "control: sem port_net");
 
     msg.flags=0;
     
@@ -508,7 +474,7 @@ trace(1, "control: sem port_net");
         msg.src = 0;
         msg.data = cbuf;
         msg.size = 1500;
-        size = port_recv(&msg);
+        size = old_port_recv(&msg);
 
         if(size >= 8){
             switch(cmd->cmd){
@@ -518,25 +484,36 @@ trace(1, "control: sem port_net");
                 msg.data = cbuf;
                 msg.dst = msg.src;
                 msg.src = port_isr;
-                port_send(&msg);
+                old_port_send(&msg);
                 break;
                 
-            case NET_CONNECT:
-                pmap[0].udp_port = cmd->port;
-                pmap[0].blt_port = msg.src;
-                printf("ne2000: routing udp:%d -> blt:%d\n",
-                       cmd->port, msg.src);
-                
+            case NET_CONNECT: {
+				pmap *m = (pmap *) malloc(sizeof(pmap));
+				if(m) {
+					m->udp_port = cmd->port;
+					m->blt_port = msg.src;
+					m->next = pmaps;
+					pmaps = m;
+					printf("ne2000: routing udp:%d -> blt:%d\n",
+						   cmd->port, msg.src);
+				}                
                 break;
-            case NET_SEND:
-                send_udp(cmd->port, NULL, cmd->data, size-8);
+			}	
+            case NET_SEND: {
+				pmap *m;
+				for(m = pmaps; m; m = m->next){
+					if(msg.src == m->blt_port) {
+						send_udp(m->udp_port, cmd->port, NULL, cmd->data, size-8);
+					}
+				}
                 break;
-            }
-        }
+			}
+			}
+			
+		}
     }
 
 }
-
 
 void
 sender(void)
@@ -544,13 +521,6 @@ sender(void)
     msg_hdr_t mh;
     pbuf *packet;
     
-    port_xmit = port_create(port_isr,"net_isr_port");
-/*    port_xmit_done = port_create(port_isr);*/
-    sem_xmit_done = qsem_create(1);
-    
-if (sem_xmit_done)
-trace(1, "sender: sem sem_xmit_done");
-
     mh.flags = 0;
     mh.src = port_isr;
     mh.size = 4;
@@ -559,62 +529,16 @@ trace(1, "sender: sem sem_xmit_done");
     for(;;){
             /* wait for a send request */
         mh.dst = port_xmit;
-        if(port_recv(&mh) == 4){
-trace(2, "sender: sending packet");
+        if(old_port_recv(&mh) == 4){
+			trace(2, "sender: sending packet");
                 /* send the packet */
             qsem_acquire(mutex);
             nic_send_packet(&TheSNIC, &(packet->pb));
             qsem_release(mutex);
             
-                /* wait for a done response */
-/*            mh.dst = port_xmit_done;
-            if(port_recv(&mh) == 4){
-            }*/
             qsem_acquire(sem_xmit_done);
         }    
     }
-}
-
-void
-dispatcher(void)
-{
-    pbuf *packet;
-    unsigned char *b;
-    msg_hdr_t msg;
-    port_dispatch = port_create(port_isr,"net_dispatch_port");
-
-if (port_dispatch)
-trace(1, "dispatcher: sem port_dispatcher");
-
-    msg.flags = 0;
-    msg.src = port_isr;
-    msg.size = 4;
-    msg.dst = port_dispatch;
-    msg.data = &packet;
-    
-    for(;;){
-        if(port_recv(&msg) == 4){
-            b = (unsigned char *) packet->pd.ptr;
-            
-            if(b[12] == 0x08){
-                if(b[13] == 0x00) {
-                    handle_ip((ip_packet *) b, packet);
-                } else if(b[13] == 0x06) {
-                    handle_arp((arp_packet *) b, packet);
-                }
-            }
-            free_buffer_data(&(packet->pd));
-        }
-    }
-}
-
-/*
- * bad kludge where using volatile doesn't fool the compiler's optimizer
- * do not make this inline.
- */
-static int check_avail(void * foo)
-{
-	return (foo) ? 1 : 0;
 }
 
 void ISR(void)
@@ -629,25 +553,9 @@ void ISR(void)
     }
 }
 
-int atoi(char *x)
-{
-	int n = 0;
-	while(*x) {
-		n = (n * 10) + (*x - '0');
-		x++;
-	}
-	return n;
-}
-
 int main(int argc, char **argv)
 {
     int i;
-
-    __libc_init_console();
-
-//    if(loadip[0]=='i' && loadip[1]=='p'){
-//        memcpy(IP,loadip+2,4);   
-//    }
     
 	if(argc == 5){
 		for(i=0;i<4;i++){
@@ -667,6 +575,7 @@ int main(int argc, char **argv)
         /* create our send port */
     port_isr = port_create(0,"net_send_port");
     port_set_restrict(port_isr, port_isr);
+	port_option(port_isr, PORT_OPT_NOWAIT, 1);
 
     namer_register(port_isr,"net_xmit");
 
@@ -682,17 +591,17 @@ int main(int argc, char **argv)
     
     printf("ne2000: starting sender, dispatcher, and control\n");
 
+	namer_register(port_net = port_create(0,"net_listen_port"),"net");
+
+    port_xmit = port_create(port_isr,"net_isr_port");
+    sem_xmit_done = qsem_create(0);    
+	
     os_thread(sender);
-    //os_thread(dispatcher);
     os_thread(control);
 
-    while (!(check_avail(sem_xmit_done) && port_net));
-    
     printf("ne2000: starting NIC\n");
     nic_start(&TheSNIC,0);
     printf("ne2000: \033[32mready.\033[37m\n");
-
-/*    printf("TS=%X TD=%X\n",ts,td);*/
     
 	os_thread(ISR);
 	

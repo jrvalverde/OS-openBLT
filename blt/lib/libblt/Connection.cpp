@@ -32,7 +32,7 @@ Connection::Send(const Message *msg)
 	mh.data = (void*) data;
 	mh.size = len;
 	
-	res = port_send(&mh);
+	res = old_port_send(&mh);
 	if(res != len) {
 		return res;
 	} else {
@@ -52,7 +52,7 @@ Connection::Recv(Message *msg)
 	mh.size = 1024;
 	mh.data = buf;
 	
-	if((res = port_recv(&mh)) < 0) return res;
+	if((res = old_port_recv(&mh)) < 0) return res;
 	
 	return msg->PutPackedData(buf,res,mh.src);
 }

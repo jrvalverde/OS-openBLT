@@ -12,6 +12,13 @@
 # /boot/ide
 # /boot/tell vfs load ffs
 # /boot/mkdir /freebsd
-# /boot/tell vfs mount ffs /freebsd ide/0/0/1a
+# /boot/tell vfs mount ffs /freebsd ide/0/0/1aZ
+
+# PCI device services
+#
+/boot/pci
+
+# Start the shell
+#
 /boot/bltsh
 

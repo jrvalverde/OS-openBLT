@@ -3,7 +3,7 @@
 #include <blt/syscall.h>
 #include <blt/os.h>
 
-#define LOOK_ITS_A_RACE 0
+#define LOOK_ITS_A_RACE 1
 
 #if LOOK_ITS_A_RACE
 	int malloc_sem = -1;
@@ -61,7 +61,7 @@ int consumer(void *_p)
 		header.dst = port;
 		header.data = buffer;
 		header.size = 10;
-		port_recv(&header);
+		old_port_recv(&header);
 		printf("%s receive\n", ((cl_info*) _p)->name);
 	}
 }
@@ -77,7 +77,7 @@ int producer(void *_p)
 		header.dst = port;
 		header.data = buffer;
 		header.size = 10;
-		port_send(&header);
+		old_port_send(&header);
 		printf("%s send\n", ((cl_info*) _p)->name);
 	}
 }

@@ -1,29 +1,5 @@
-/* $Id$
-**
-** Copyright 1998 Brian J. Swetland
-** All rights reserved.
-**
-** Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions
-** are met:
-** 1. Redistributions of source code must retain the above copyright
-**    notice, this list of conditions, and the following disclaimer.
-** 2. Redistributions in binary form must reproduce the above copyright
-**    notice, this list of conditions, and the following disclaimer in the
-**    documentation and/or other materials provided with the distribution.
-** 3. The name of the author may not be used to endorse or promote products
-**    derived from this software without specific prior written permission.
-**
-** THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-** IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-** OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-** IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-** INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-** NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* Copyright 1998-2000 Brian J. Swetland.  All rights reserved.
+** Distributed under the terms of the OpenBLT License.
 */
 
 #ifndef _SYSCALL_H_
@@ -43,56 +19,42 @@ extern "C" {
 	void  os_sleep_irq(void);
 	void  os_debug(void);
 	void  os_sleep(int ticks);
-	int   os_identify(int rsrc); /* returns the thread_id of the owner of a resource */
+	int   os_identify(int rsrc); /* returns the team_id of the owner of a resource */
 	
-	int sem_create(int value, const char *name);
-	int sem_destroy(int sem);
-	int sem_acquire(int sem);
-	int sem_release(int sem);
+	sem_id sem_create(int value, const char *name);
+	int sem_destroy(sem_id sem);
+	int sem_acquire(sem_id sem);
+	int sem_release(sem_id sem);
 
-#ifdef __cplusplus
-}
-#endif
-
-
-
-typedef struct {
-    int flags;
-    int src;
-    int dst;
-    int size;
-    void *data;    
-} msg_hdr_t;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-	int port_create(int restrict, const char *name);
-	int port_destroy(int port);
-	int port_option(int port, uint32 opt, uint32 arg);
-	int port_send(msg_hdr_t *mh);
-	int port_recv(msg_hdr_t *mh);
+	port_id port_create(int restrict, const char *name);
+	int port_destroy(port_id port);
+	int port_option(port_id port, uint32 opt, uint32 arg);
+	ssize_t port_send(port_id src, port_id dst, const void *data, size_t len, uint32 code);
+	ssize_t port_recv(port_id dst, port_id *src, void *data, size_t max, uint32 *code);
+	ssize_t port_peek(port_id *src, port_id *dst, int *code);
 	
 	#define port_set_restrict(port, restrict) port_option(port,PORT_OPT_SETRESTRICT,restrict);
 	#define port_slave(master, slave) port_option(slave,PORT_OPT_SLAVE,master)
+	#define port_set_nonblocking(port) port_option(port, PORT_OPT_NOWAIT, 1);
+	#define port_set_blocking(port) port_option(port, PORT_OPT_NOWAIT, 0);
+	#define port_set_timeout(port, useconds)
+		
+	thread_id thr_create(void *addr, void *data, const char *name);
+	int thr_resume(thread_id thr_id);
+	int thr_suspend(thread_id thr_id);
+	int thr_kill(thread_id thr_id);
+	int thr_detach(thread_id (*addr)(void));
+	int thr_wait(thread_id thr_id);
 	
-	int thr_create(void *addr, void *data, const char *name);
-	int thr_resume(int thr_id);
-	int thr_suspend(int thr_id);
-	int thr_kill(int thr_id);
-	int thr_detach(void (*addr)(void));
-	int thr_wait(int thr_id);
-	
-	int thr_spawn(uint32 eip, uint32 esp,
-				  int area0, uint32 vaddr0,
-				  int area1, uint32 vaddr1,
+	thread_id thr_spawn(uint32 eip, uint32 esp,
+				  area_id area0, uint32 vaddr0,
+				  area_id area1, uint32 vaddr1,
 				  const char *name);
 	
-	int area_create(off_t size, off_t virt, void **addr, uint32 flags);
-	int area_clone(int area_id, off_t virt, void **addr, uint32 flags);
-	int area_destroy(int area_id);
-	int area_resize(int area_id, off_t size);   
+	area_id area_create(off_t size, off_t virt, void **addr, uint32 flags);
+	area_id area_clone(area_id aid, off_t virt, void **addr, uint32 flags);
+	int area_destroy(area_id aid);
+	int area_resize(area_id aid, off_t size);   
 	
 	int right_create(int rsrc_id, uint32 flags);
 	int right_destroy(int right_id);
@@ -126,5 +88,17 @@ extern "C" {
 #define os_thread(addr) thr_create(addr,NULL,NULL);
 #define thr_join(thr_id,opt) thr_wait(thr_id);
 #define thr_detach(addr) (0)
+
+/* deprecated messaging system */
+typedef struct {
+    int flags;
+    int src;
+    int dst;
+    int size;
+    void *data;    
+} msg_hdr_t;
+
+#define old_port_send(mh) port_send((mh)->src, (mh)->dst, (mh)->data, (mh)->size, 0)
+#define old_port_recv(mh) port_recv((mh)->dst, &((mh)->src), (mh)->data, (mh)->size, 0)
 
 #endif

@@ -108,7 +108,7 @@ void WindowManager::ReadServicePort(void *data, int size)
 			header.data = fReceiveBuffer;
 			header.size = kReceiveBufferSize;
 		
-			fReceiveBufferSize = port_recv(&header);
+			fReceiveBufferSize = old_port_recv(&header);
 			fReceiveBufferPos = 0;
 			fRequestorPort = header.src;
 			continue;
@@ -128,7 +128,7 @@ void WindowManager::Respond(void *data, int size)
 	header.dst = RequestorPort();
 	header.data = data;
 	header.size = size;
-	port_send(&header);
+	old_port_send(&header);
 }
 
 int WindowManager::ReadInt32()

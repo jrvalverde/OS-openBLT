@@ -54,6 +54,9 @@ void terminate(void)
 
 void sleep(int ticks)
 {
+	/* convert from microseconds to 3ms ticks - round up slightly */
+	ticks = ((ticks + 2000) / 3000); 
+	
 	if(ticks) {
 		rsrc_enqueue_ordered(timer_queue, current, kernel_timer + ticks);
 	}
@@ -61,8 +64,13 @@ void sleep(int ticks)
 }
 
 #define p_uint32(n) (esp[n])
+#define p_int(n) ((int) esp[n])
 #define p_voidptr(n) ((void *) esp[n])
 #define p_charptr(n) ((char *) esp[n])
+#define p_sizet(n) ((size_t) esp[n])
+#define p_pint(n) ((int*) esp[n])
+#define p_puint32(n) ((uint32*) esp[n])
+
 #define res r.eax
 int metacall (volatile uint32 *esp);
 
@@ -168,11 +176,11 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
         break;
 
     case BLT_SYS_port_send :
-        res = port_send(p_voidptr(1));
+        res = port_send(p_int(1), p_int(2), p_voidptr(3), p_sizet(4), p_uint32(5));
         break;
 
     case BLT_SYS_port_recv :
-        res = port_recv(p_voidptr(1));
+        res = port_recv(p_int(1), p_pint(2), p_voidptr(3), p_sizet(4), p_puint32(5));
         break;        
 		
 	case BLT_SYS_right_create :

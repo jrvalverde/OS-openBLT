@@ -38,9 +38,10 @@
 
 #include "vt100.h"
 
-int console_port;
-int send_port;
-int input_port;
+int console_port = -1;
+int send_port = -1;
+int remote_port = -1;
+
 volatile int ready = 0;
 
 #define CLEAR "\033[2J"
@@ -97,18 +98,14 @@ void printf(char *fmt, ...);
 
 void keypress(int key)
 {
+	char c;
+	
 	sem_acquire(active->lock);
 	char_to_virtscreen(active, key);
-	sem_release(active->lock);
-	
-	qsem_acquire(active->input_lock);
-	if (active->input_len < sizeof (active->input))
-	{
-		active->input[active->input_len++] = key;
-		qsem_release(active->input_lock);
-		qsem_release(active->len_lock);
-	} else {
-		qsem_release(active->input_lock);
+	sem_release(active->lock);	
+	if(remote_port > 0) {
+		c = key;
+		port_send(send_port, remote_port, &c, 1, 0);
 	}
 }
 
@@ -146,9 +143,9 @@ void vprintf(struct virtscreen *vscr, char *fmt, ...)
     vputs(vscr,line);
 }
                                     
-void status(void)
+void status(int n)
 {
-	vputs(&statbar,FG_WHITE BG_BLUE CLEAR "### OpenBLT Console mkII ###");
+	vprintf(&statbar,FG_WHITE BG_BLUE CLEAR "### OpenBLT Console mkII ### VC %d",n);
 }
 
 #define ESC 27
@@ -208,7 +205,7 @@ void load(struct virtscreen *vscr)
     active = vscr;
     movecursor(vscr->xpos,vscr->ypos);
     sem_release(vscr->lock);
-    status();
+    status(vscr - con);
 }
 
 void function(int number)
@@ -226,7 +223,6 @@ void keyboard_irq_thread(void)
 	
     int key;
 
-    send_port = port_create(console_port,"console_xmit_port");
     os_handle_irq(1);
 	
     for(;;) {
@@ -301,90 +297,25 @@ void keyboard_irq_thread(void)
 
 }
 
-#if 0
-void test(void)
-{
-	int a0, a1;
-	int i;
-	unsigned char *ac0, *ac1;
-	a0 = area_create(0x8000,0,(void **) &ac0, 0);
-	a1 = area_clone(a0,0,(void **) &ac1, 0);
-
-	vprintf(active,"area id %U @ 0x%x\r\n",a0,(uint32) ac0);
-	vprintf(active,"area id %U @ 0x%x\r\n",a1,(uint32) ac1);
-
-	for(i=0;i<0x8000;i++){
-		ac0[i] = (i % 256);
-		if(ac0[i] != ac1[i]) vprintf(active,"barfo @ %x\r\n",i);
-	}
-	vprintf(active,"success.\r\n");
-
-}
-#endif
-
 void console_thread(void)
 {
-    int l;
+    int l, src;
+	uint32 code;
     char data[257];
-    msg_hdr_t msg;
         
-    msg.data = data;
-    msg.dst = console_port;
-    msg.size = 256;
 #ifdef CONSOLE_DEBUG
     vprintf(active, "console: " FG_GREEN "listener ready" FG_WHITE " (port %d)\n",console_port);
 #endif
     
-    while((l = port_recv(&msg)) > 0){
-        data[l] = 0;
-        vputs(active, data);
+	while((l = port_recv(console_port, &src, data, 256, &code)) >= 0){
+		if(code == 0) {
+			remote_port = src;			
+		} else {
+			data[l] = 0;
+			vputs(active, data);
+		}
     }
-    vprintf(active, "console: output listener has left the building\n");
-    os_terminate(0);
-}
-
-void input_thread(void)
-{
-    int i, j, len;
-    char data[32];
-    msg_hdr_t msg, reply;
-    
-	input_port = port_create(0,"console_input_port");
-	namer_register(input_port,"console_input");
-
-#ifdef CONSOLE_DEBUG
-    vprintf(active, "console: " FG_GREEN "input listener ready" FG_WHITE
-		" (port %d)\n",input_port);
-#endif
-	ready = 1;
-
-	for (;;)
-	{
-		msg.src = 0;
-		msg.dst = input_port;
-		msg.data = data;
-		msg.size = sizeof (data);
-		port_recv (&msg);
-
-		len = *((char *) msg.data);
-		if (len < 1)
-			continue;
-
-		qsem_acquire (active->len_lock);
-		qsem_acquire (active->input_lock);
-		data[0] = active->input[0];
-		for (i = 0; i < (active->input_len - 1); i++)
-			active->input[i] = active->input[i + 1];
-		active->input_len--;
-		qsem_release (active->input_lock);
-
-		reply.src = input_port;
-		reply.dst = msg.src;
-		reply.data = data;
-		reply.size = 1;
-		port_send(&reply);
-    }
-    vprintf(active, "console: input listener has left the building\n");
+    vprintf(active, "console: output listener has left the building (%d)\n",l);
     os_terminate(0);
 }
 
@@ -394,6 +325,9 @@ int console_main(void)
 	area_create(0x2000, 0, &screen, AREA_PHYSMAP);
     
     console_port = port_create(0,"console_listen_port");
+    send_port = port_create(0,"console_send_port");
+	port_option(send_port, PORT_OPT_NOWAIT, 1);
+	
     err = namer_register(console_port,"console");
 
 	init_virtscreen(&statbar, 1, 80);
@@ -405,14 +339,11 @@ int console_main(void)
         init_virtscreen(&con[i], 24, 80);
         con[i].back = con[i].data;
         con[i].lock = sem_create(1,"vscr_lock");
-		con[i].input_len = 0;
-		con[i].input_lock = qsem_create (1);
-		con[i].len_lock = qsem_create (0);
         vputs(&con[i],CLEAR);
     }
     load(&con[0]);
 	
-    status();
+    status(0);
     if(err) vprintf(active,"console: the namer hates us\n");
     else
 #ifdef CONSOLE_DEBUG
@@ -422,7 +353,7 @@ int console_main(void)
 #endif
     
 	thr_create(keyboard_irq_thread, NULL, "console:kbd");
-	thr_create(input_thread, NULL, "console:input");
+    ready = 1;
     console_thread();
     
     return 0;

@@ -50,7 +50,7 @@ void ide_main (int *ready)
 		mh.dst = port;
 		mh.data = txn;
 		mh.size = txnlen;
-		port_recv (&mh);
+		old_port_recv (&mh);
 
 		switch (txn->cmd)
 		{
@@ -124,7 +124,7 @@ void ide_main (int *ready)
 		mh.dst = mh.src;
 		mh.src = port;
 		mh.data = res;
-		port_send (&mh);
+		old_port_send (&mh);
 	}
 }
 

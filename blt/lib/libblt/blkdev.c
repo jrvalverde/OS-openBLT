@@ -42,13 +42,13 @@ int _blk_open (const char *name, int flags, blkdev_t **retdev)
 	mh.dst = dev->remote_port;
 	mh.data = txn;
 	mh.size = len;
-	port_send (&mh);
+	old_port_send (&mh);
 
 	mh.src = dev->remote_port;
 	mh.dst = dev->local_port;
 	mh.data = &res;
 	mh.size = sizeof (blkres_t);
-	port_recv (&mh);
+	old_port_recv (&mh);
 
 	if (res.status)
 	{
@@ -88,13 +88,13 @@ int _blk_read (blkdev_t *dev, void *buf, int block, int count)
 		mh.dst = dev->remote_port;
 		mh.data = &txn;
 		mh.size = sizeof (blktxn_t);
-		port_send (&mh);
+		old_port_send (&mh);
 
 		mh.src = dev->remote_port;
 		mh.dst = dev->local_port;
 		mh.data = res;
 		mh.size = len;
-		port_recv (&mh);
+		old_port_recv (&mh);
 
 		if (res->status)
 			goto done;
