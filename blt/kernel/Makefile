@@ -5,11 +5,11 @@ CFLAGS		+= -DASSERT $(SMP) $(SERIAL) $(SERIALDEBUG)
 BINARY		:= kernel.bin
 LIBS		:= -lkern -lconsole
 ENTRY		:= $(ENTRY_KERNEL)
-CRT0		:= stub.o
+CRT0		:= 
 
-OBJS 		:=  kernel.o i386.o jump.o ktrace.o \
+OBJS 		:=  stub.o kernel.o i386.o jump.o ktrace.o \
 			memory.o resource.o port.o sem.o aspace.o task.o rights.o \
-			list.o team.o fault.o syscall.o debug.o assert.o 
+			list.o team.o fault.o syscall.o debug.o 
 
 ifeq ($(SMP),-D__SMP__)
 OBJS		+= smp.o cpuid.o trampoline.o

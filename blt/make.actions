@@ -86,10 +86,10 @@ ifneq ($(SUBDIRS),)
 	done
 endif
 
-all:: check_path subdirs $(BINARY) $(LIBRARY) $(SHLIB_NAME) $(TARGETS)
+all:: check_path $(PRETARGETS) subdirs $(BINARY) $(LIBRARY) $(SHLIB_NAME) $(TARGETS)
 
 clean:: check_path subclean
-	@rm -f $(OBJS) $(LIBOBJS) $(BINARY) $(LIBRARY) $(SHLIB) $(SHLIB_NAME) $(TARGETS) *.debug
+	@rm -f $(OBJS) $(LIBOBJS) $(BINARY) $(LIBRARY) $(SHLIB) $(SHLIB_NAME) $(PRETARGETS) $(TARGETS) *.debug *.d
 
 realclean:: clean
 	@rm -f *.d
@@ -103,7 +103,7 @@ DEP_FLAGS := -M -MG $(CFLAGS)
 ifeq ($(QUIET),true)
 	@echo "###  Compiling: $<"
 endif
-	$(SHUSH)$(CC) $(CFLAGS) -c $<
+	$(SHUSH)$(CC) $(CXXFLAGS) -c $<
 
 %.o: %.c
 ifeq ($(QUIET),true)

@@ -1,29 +1,5 @@
-/* $Id$
-**
-** Copyright 1998 Brian J. Swetland
-** All rights reserved.
-**
-** Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions
-** are met:
-** 1. Redistributions of source code must retain the above copyright
-**    notice, this list of conditions, and the following disclaimer.
-** 2. Redistributions in binary form must reproduce the above copyright
-**    notice, this list of conditions, and the following disclaimer in the
-**    documentation and/or other materials provided with the distribution.
-** 3. The name of the author may not be used to endorse or promote products
-**    derived from this software without specific prior written permission.
-**
-** THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-** IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-** OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-** IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-** INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-** NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* Copyright 1998-1999, Brian J. Swetland. All rights reserved.
+** Distributed under the terms of the OpenBLT License
 */
 
 #include "kernel.h"
@@ -38,8 +14,6 @@
 #include "task.h"
 #include "smp.h"
 #include "team.h"
-
-#include "assert.h"
 
 void DEBUGGER(void);
 
@@ -107,7 +81,7 @@ void reaper(void)
 	for(;;){
 		sem_acquire(reaper_sem);
 		task = rsrc_dequeue(reaper_queue);		
-		kprintf("reaper reclaiming thread #%d (%s)",task->rsrc.id,task->rsrc.name);
+//		kprintf("reaper reclaiming thread #%d (%s)",task->rsrc.id,task->rsrc.name);
 		task_destroy(task);
 	}
 	

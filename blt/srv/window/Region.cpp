@@ -234,7 +234,7 @@ Region& Region::Invert()
 	return *this;
 }
 
-const bool Region::FindRect(int x, int y, Rect &outRect)
+const bool Region::FindRect(int x, int y, Rect &outRect) const
 {
 	for (int i = 0; i < CountRects(); i++) {
 		if (RectAt(i).Contains(x, y)) {
@@ -302,12 +302,12 @@ void Region::AllocSpace(int numRects)
 
 	if (sizeWanted != currentAlloc) {
 		if (fRects == 0 && sizeWanted > 0)
-			fRects = malloc(sizeWanted * sizeof(Rect));
+			fRects = (Rect*) malloc(sizeWanted * sizeof(Rect));
 		else if (sizeWanted == 0 && fRects != 0) {
 			free(fRects);
 			fRects = 0;
 		} else
-			fRects = realloc(fRects, sizeWanted * sizeof(Rect));
+			fRects = (Rect*) realloc(fRects, sizeWanted * sizeof(Rect));
 	}
 }
 

@@ -345,14 +345,12 @@ void console_thread(void)
 
 void input_thread(void)
 {
-    int i, j, nh, len;
+    int i, j, len;
     char data[32];
     msg_hdr_t msg, reply;
     
 	input_port = port_create(0,"console_input_port");
-	nh = namer_newhandle();    
-	namer_register(nh, input_port,"console_input");
-	namer_delhandle(nh);    
+	namer_register(input_port,"console_input");
 
 #ifdef CONSOLE_DEBUG
     vprintf(active, "console: " FG_GREEN "input listener ready" FG_WHITE
@@ -392,13 +390,11 @@ void input_thread(void)
 
 int console_main(void)
 {
-    int err,nh,i;    
+    int err,i;    
 	area_create(0x2000, 0, &screen, AREA_PHYSMAP);
     
     console_port = port_create(0,"console_listen_port");
-    nh = namer_newhandle();    
-    err = namer_register(nh,console_port,"console");
-    namer_delhandle(nh);    
+    err = namer_register(console_port,"console");
 
 	init_virtscreen(&statbar, 1, 80);
     statbar.back = statbar.data;

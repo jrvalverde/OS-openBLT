@@ -34,24 +34,31 @@
 #include <blt/libsyms.h>
 
 int main(int argc, char **argv);
-void __libc_init_memory(unsigned int top_of_binary,
-                        unsigned int start_bss, unsigned int bss_length);
-void __libc_init_fdl (void);
-void __libc_init_console (void);
-void __libc_init_vfs (void);
+void _init(void);
 
 char *__progname;
 
-static char *strtab = NULL;
-static int symtablen = 0, top = 0;
-static elf32_hdr_t *hdr = NULL;
-static elf32_sym_t *symtab = NULL;
-static void run_all (const char *name);
-
 void _start(int argc, char **argv)
 {
-	elf32_sec_hdr_t *last;
+	_init();
+	__progname = *argv;
+	os_terminate (main (argc, argv));
+}
 
+#define MAXINIT 8
+
+void __libc_init_memory(unsigned int top_of_binary,
+                        unsigned int start_bss, unsigned int bss_length);
+
+static void _init(void)
+{
+	char *strtab;
+	int symtablen, top, i, j, p;
+	elf32_hdr_t *hdr;
+	elf32_sym_t *symtab;
+	elf32_sec_hdr_t *last;
+	init_info *inits[MAXINIT];
+	
 	hdr = (elf32_hdr_t *) 0x1000;
 	symtab = _elf_find_section_data (hdr, ".symtab");
 	strtab = _elf_find_section_data (hdr, ".strtab");
@@ -60,25 +67,26 @@ void _start(int argc, char **argv)
 		hdr->e_shentsize * (hdr->e_shnum - 1));
 	top = (unsigned int) hdr + last->sh_offset + last->sh_size;
 	
+	/* Find any __init_... symbols and build a list of 'em
+	** These will all be called before main(), but after
+	** the .bss is zero'd
+	*/
+	for (j = 0, i = 0; i < symtablen; i++){
+		if (!strncmp(strtab + symtab[i].st_name, "__init_", 7) &&
+			(symtab[i].st_shndx != SHN_UNDEF)){
+			inits[j++] = (init_info *) symtab[i].st_value;
+			if(j == MAXINIT) break;
+		}
+	}
+	
 	__libc_init_memory((unsigned int) top, (unsigned int)
 		_elf_find_section_data (hdr, ".bss"), _elf_section_size (hdr, ".bss"));
 
-	run_all ("_init");
-	__progname = *argv;
-	__libc_init_fdl ();
-	__libc_init_console ();
-	__libc_init_vfs ();
-	os_terminate (main (argc, argv));
-}
-
-static void run_all (const char *name)
-{
-	int i;
-
-	for (i = 0; i < symtablen; i++)
-		if (!strcmp (strtab + symtab[i].st_name, name) &&
-				(symtab[i].st_shndx != SHN_UNDEF))
-			(*((void (*)(void)) symtab[i].st_value)) ();
+	for(p=0;p<5;p++){	
+		for(i = 0; i < j; i++){
+			if(inits[i]->priority == p) inits[i]->func();
+		}
+	}
 }
 
 elf32_sec_hdr_t *_elf_find_section_hdr (elf32_hdr_t *hdr, char *name)

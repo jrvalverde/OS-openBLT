@@ -2,7 +2,7 @@ BLTHOME := ../../
 include $(BLTHOME)make.conf
 
 BINARY		:= uname.bin
-LIBS		:= -lc -lblt
 OBJS		:= uname.o ../../lib/version.o
+LIBS		:= -lposix -lblt -lc
 
 include $(BLTHOME)make.actions

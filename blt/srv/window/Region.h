@@ -24,7 +24,7 @@ public:
 	Region& SetTo(const Region&);
 	Region& operator=(const Region&);
 
-	const bool FindRect(int x, int y, Rect &outRect);
+	const bool FindRect(int x, int y, Rect &outRect) const;
 
 	Rect Bounds() const;
 	inline bool Valid() const;

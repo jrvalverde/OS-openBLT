@@ -131,7 +131,7 @@ int main (void)
                         strlcpy (params[i], c, len + 1);
                         c += len + 1;
                     }
-                    params[p_argc] = NULL;
+                    params[i] = NULL;
                     if (!strcmp (params[0], "exit"))
                         os_terminate (1);
 
@@ -205,7 +205,7 @@ int main (void)
                         strlcpy (params[i], c, len + 1);
                         c += len + 1;
                     }
-                    params[p_argc] = NULL;
+                    params[i] = NULL;
                     if (!strcmp (params[0], "exit"))
                         os_terminate (1);
 						

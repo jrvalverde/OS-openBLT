@@ -20,10 +20,10 @@ WindowManager::WindowManager(Renderer *screenRenderer)
 	:	fNextWindowID(1),
 		fReceiveBufferSize(0),
 		fReceiveBufferPos(0),
-		fScreenRenderer(screenRenderer),
 		fCurrentMouseFocus(0),
 		fMouseFocusLocked(false),
-		fInFocusLockedWindow(false)
+		fInFocusLockedWindow(false),
+		fScreenRenderer(screenRenderer)
 {
 	fReceiveBuffer = (char*) malloc(kReceiveBufferSize);
 	for (int i = 0; i < kMaxWindows; i++)
@@ -171,9 +171,7 @@ void WindowManager::DispatchThread()
 {
     fServicePort = port_create(0, "window_server");
 
-	int nh = namer_newhandle();
-    namer_register(nh, fServicePort, "window_server");
-    namer_delhandle(nh);
+    namer_register(fServicePort, "window_server");
 
 	while (true) {
 		int opcode = ReadInt8();

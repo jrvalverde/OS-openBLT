@@ -3,6 +3,6 @@ include $(BLTHOME)make.conf
 
 SRCS		:= validate.c
 BINARY		:= validate.bin
-LIBS		:= -lc -lblt
+LIBS		:= -lposix -lblt -lc
 
 include $(BLTHOME)make.actions

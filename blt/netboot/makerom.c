@@ -83,7 +83,13 @@ int main(int argc, char *argv[])
 		perror("read error");
 		return 1;
 	}
-	
+
+	/* store size in ROM header */	
+	rom[2] = ROMSIZE / 512;
+
+	/* store size in PCI ROM header */
+	rom[0x18 + 0x10 + 4] = ROMSIZE / 512;
+
 	rom[5] = 0;
 	for (i=0,sum=0; i<ROMSIZE; i++) sum += rom[i];
 	rom[5] = -sum;

@@ -39,6 +39,8 @@
 
 snic TheSNIC;
 
+int nic_addr = 0x300;
+
 char blah[1500]; /* inbound packet buffer */
 
 char defaults[] = "ip=0.0.0.0";
@@ -69,15 +71,11 @@ unsigned char *ip = ip0 + 3;
 
 unsigned char server_ip[4] = { 0, 0, 0, 0 };
 unsigned char server_mac[6] = { 0, 0, 0, 0, 0, 0 };
-/*unsigned char gateway_ip[4] = { 0, 0, 0, 0 };
-unsigned char gateway_mac[6] = { 0, 0, 0, 0, 0, 0 };*/
 unsigned short port = 0;
 
 #define SKIP 0
 #define LHS 1
 #define RHS 2
-
-
 
 void read_ip(char *s, unsigned char *ip)
 {
@@ -522,7 +520,6 @@ void handle_rarp(arp_packet *req)
         if(!memcmp(&(req->arp.arp_enet_target),prom,6)){
             if(memcmp(&(req->arp.arp_ip_target),ip,4)){
                 x = &(req->arp.arp_ip_target);
-                printf("netboot: ip = %d.%d.%d.%d\n",x[0],x[1],x[2],x[3]);
                 ip[0] = x[0];
                 ip[1] = x[1];
                 ip[2] = x[2];
@@ -618,6 +615,10 @@ void receive(packet_buffer *packet)
     } 
 }
 
+void find_8390(int *addr);
+
+extern char *blagh;
+
 void main(int mem)
 {
     int i,mono;
@@ -625,7 +626,7 @@ void main(int mem)
     char buf[128];
     int snic_irq = 3;    
     char *x;
-    
+	
     memsize = mem;
     param[0] = 0;
     
@@ -633,11 +634,16 @@ void main(int mem)
 
     parse(defaults);
     
+	find_8390(&nic_addr);
+	
+	ipmsg = "(default)";
+	ip[0] = ip[1] = ip[2] = ip[3] = 10;
+	
     for(;;){
         reset = 0;
         
         TheSNIC.iobase = 0;
-        nic_init(&TheSNIC, 0x300, prom, NULL);
+        nic_init(&TheSNIC, nic_addr, prom, NULL);
 
         con_start( mono ? 0xB0000 : 0xB8000);
 
@@ -646,34 +652,34 @@ void main(int mem)
         }
 /*              01234567890123456789012345678901234567890123456789012345678901234567890123456789 */
 		printf("\n");
-		printf("  ##   ##  ######  ######  ######    #####    #####   ######  OpenBLT Boot ROM\n");
-		printf("  ###  ##  ##        ##    ##   ##  ##   ##  ##   ##    ##    Version 1.4\n");
-		printf("  ## # ##  #####     ##    ######   ##   ##  ##   ##    ##    \n");
-		printf("  ##  ###  ##        ##    ##   ##  ##   ##  ##   ##    ##    Copyright 1999\n");
-		printf("  ##   ##  ######    ##    ######    #####    #####     ##    OpenBLT Dev Team");
+		printf("    ##   ##  ######  ######  ######    #####    #####   ######\n");
+		printf("    ###  ##  ##        ##    ##   ##  ##   ##  ##   ##    ##\n");
+		printf("    ## # ##  #####     ##    ######   ##   ##  ##   ##    ##\n");
+		printf("    ##  ###  ##        ##    ##   ##  ##   ##  ##   ##    ##     Version 1.5\n");
+		printf("    ##   ##  ######    ##    ######    #####    #####     ##     " __DATE__);
 		
         if(!mono){
             con_fgbg(CON_WHITE,CON_BLACK);
         }
         printf("\n\n\n");
-		printf("netboot: 0x00090000 - bootloader start\n");
-        printf("netboot: 0x%x - bootloader end\n", (int) end);
-        printf("netboot: 0x00100000 - target load address\n");
-        printf("netboot: 0x%x - top of memory\n",mem);
+		printf("0x00090000 - bootloader start\n");
+        printf("0x%x - bootloader end\n", (int) end);
+        printf("0x00100000 - target load address\n");
+        printf("0x%x - top of memory\n",mem);
         printf("\n");
         
-        printf("netboot: NE2000 @ 0x300 (%X:%X:%X:%X:%X:%X)\n",
+        printf("NE2000 @ 0x%S (%X:%X:%X:%X:%X:%X)\n", nic_addr,
                prom[0],prom[1],prom[2],prom[3],prom[4],prom[5]);    
         
-        printf("netboot: ip = %d.%d.%d.%d %s\n",ip[0],ip[1],ip[2],ip[3],
+        printf("ip = %d.%d.%d.%d %s\n",ip[0],ip[1],ip[2],ip[3],
                ipmsg);
-        if(param[0]) printf("netboot: boot = \"%s\"\n",param);
+        if(param[0]) printf("boot = \"%s\"\n",param);
         
         nic_register_notify(&TheSNIC,receive);
         
         nic_start(&TheSNIC,0);
         
-        printf("\nnetboot: ready. (ESC for console)\n");
+        printf("\nready. (ESC for console)\n");
 
         if(!got_ip){
             issue_rarp_request();
