@@ -21,7 +21,7 @@ void putpage(uint32);                 /* release a single physical page */
 
 void *kgetpage(uint32 *phys);         /* allocate one page (and return phys addr) */
 void *kgetpages(int count);           /* allocate count pages */
-
+void kfreepage(void *vaddr);
 void *kmallocP(int pool);             /* allocate from pool (eg KM16, KM128, ...)*/
 void kfreeP(int pool, void *block);   /* release back to pool */
 

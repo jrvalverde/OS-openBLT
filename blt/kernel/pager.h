@@ -1,4 +1,6 @@
-/* Copyright 1998-2000, Sidney Cammeresi.  All rights reserved.
+/* $Id$
+**
+** Copyright 1998-2000, Sidney Cammeresi.  All rights reserved.
 ** Distributed under the terms of the OpenBLT License
 */
 

@@ -2,12 +2,15 @@
 ** Distributed under the terms of the OpenBLT License
 */
 
+#include <blt/os.h>
 #include "kernel.h"
 #include "memory.h"
 #include "aspace.h"
 
 extern uint32 _cr3;
 extern aspace_t *flat;
+
+int snprintf (char *s, int len, const char *fmt, ...);
 
 void aspace_pprint(uint32 *page, uint32 vbase)
 {
@@ -146,13 +149,10 @@ static int locate_span(aspace_t *a, uint32 start, uint32 len)
     return foundat;
 }
 
-
-#define AREA_PHYSMAP 0x00001010
-
 /* userland calls */
 int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 flags)
 {
-    int ppo,i,p,at;
+    int ppo,i,p=0,at;
     area_t *area;
     pagegroup_t *pg;
     phys_page_t *pp;
@@ -178,7 +178,7 @@ int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 fl
 	list_init(&pg->areas);
     for(i=0;i<size;i+=6){
         pp = (phys_page_t *) kmalloc(phys_page_t);
-        pp->lockcount = 0;
+        pp->refcount = 0;
         pp->next = pg->pages;
         pg->pages = pp;
     };
@@ -231,7 +231,7 @@ int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 fl
 
 int area_create_uber(off_t size, void *addr)
 {
-    int ppo,i,p,at;
+    int ppo,i,p,at=0;
     area_t *area;
     pagegroup_t *pg;
     phys_page_t *pp;
@@ -243,14 +243,14 @@ int area_create_uber(off_t size, void *addr)
     
     /* create a fresh pagegroup and enough phys_page_t's */    
     pg = (pagegroup_t *) kmalloc(pagegroup_t);
-    pg->flags = 0x1010;
+    pg->flags = AREA_PHYSMAP;
     pg->refcount = 1;
     pg->size = size;
     pg->pages = NULL;
 	list_init(&pg->areas);
     for(i=0;i<size;i+=6){
         pp = (phys_page_t *) kmalloc(phys_page_t);
-        pp->lockcount = 0;
+        pp->refcount = 0;
         pp->next = pg->pages;
         pg->pages = pp;
     };
@@ -373,7 +373,7 @@ int area_destroy(aspace_t *aspace, int area_id)
 		int count = 0;
 		phys_page_t *pp;
 
-		while(pp = pg->pages){
+		while((pp = pg->pages)){
 			pg->pages = pp->next;
 			if(release){
 				for(count=0;pg->size && (count < 6);count++){
@@ -431,7 +431,7 @@ int area_resize(aspace_t *aspace, int area_id, off_t size)
             pp0 = (phys_page_t *) kmalloc(phys_page_t);
             pp0->next = NULL;
             pp->next = pp0;
-            pp0->lockcount = 0;
+            pp0->refcount = 0;
             pp = pp0;
         }
         p = getpage();

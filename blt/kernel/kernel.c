@@ -2,6 +2,7 @@
 ** Distributed under the terms of the OpenBLT License
 */
 
+#include <blt/os.h>
 #include "kernel.h"
 #include "memory.h"
 #include "boot.h"
@@ -313,7 +314,7 @@ void go_kernel(void)
 
         phys = (void *) (bdir->bd_entry[i].be_offset*0x1000 + 0x100000);
         team->text_area = area_create(team->aspace,bdir->bd_entry[i].be_size*0x1000,
-            0x1000, &phys, 0x1010);
+            0x1000, &phys, AREA_PHYSMAP);
         team->heap_id = area_create(team->aspace,0x2000,0x1000 + bdir->bd_entry[i].be_size*
             0x1000, &ptr, 0);
 

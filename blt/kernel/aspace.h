@@ -18,7 +18,7 @@
 
 typedef struct __phys_page_t {
     struct __phys_page_t *next;
-    uint32 lockcount;
+    uint32 refcount;
     uint32 addr[6];
 } phys_page_t; /* 32 bytes */
 

@@ -1,4 +1,8 @@
-# $Id$
+/* $Id$
+**
+** Copyright 1998 Brian Swetland.  All rights reserved.
+** Distributed under the terms of the OpenBLT License.
+*/
 
 #include "smp.h"
 
