@@ -7,17 +7,16 @@
 #include "memory.h"
 #include "smp.h"
 #include "init.h"
+#include "port.h"
+#include "task.h"
+#include "aspace.h"
+#include "resource.h"
+#include "pager.h"
+#include "i386.h"
 
 #define noHALT_ON_FAULT
 #define DEBUG_ON_FAULT
 #define noCRASH_ON_FAULT
-
-#define noTRACK_SYSCALLS
-
-
-#include "port.h"
-#include "task.h"
-#include "aspace.h"
 
 static char *etable[] = {
     "Divide-by-zero",
@@ -41,13 +40,37 @@ static char *etable[] = {
     "Machine Check"
 };
 
+typedef void (*ehfcn)(uint32, regs, uint32, uint32, uint32);
+typedef void (*ehfcnE)(uint32, regs, uint32, uint32, uint32, uint32);
+
+void fault(uint32 number, regs r, uint32 eip, uint32 cs,
+		uint32 eflags);
+void faultE(uint32 number, regs r, uint32 error, uint32 eip, uint32 cs,
+		uint32 eflags);
+static void __fault(uint32 number, regs r, uint32 eip, uint32 cs,
+		uint32 eflags);
+static void __faultE(uint32 number, regs r, uint32 error, uint32 eip, uint32 cs,
+		uint32 eflags);
+
+static ehfcn ehtable[] =
+	{ __fault, __fault, __fault, __fault,
+	  __fault, __fault, __fault, __fault,
+	  NULL, __fault, NULL, NULL,
+	  NULL, NULL, NULL, __fault,
+	  __fault, __fault, __fault };
+static ehfcnE ehtableE[] =
+	{ NULL, NULL, NULL, NULL,
+	  NULL, NULL, NULL, NULL,
+	  __faultE, NULL, __faultE, __faultE,
+	  __faultE, __faultE, page_fault, NULL,
+	  NULL, NULL, NULL };
 
 extern unsigned char *screen;
 
 task_t *irq_task_map[16];
 
-typedef struct { uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax; } regs;
 void k_debugger(regs *r, uint32 eip, uint32 cs, uint32 eflags);
+void terminate(void);
 
 void print_regs(regs *r, uint32 eip, uint32 cs, uint32 eflags)
 {
@@ -59,8 +82,18 @@ void print_regs(regs *r, uint32 eip, uint32 cs, uint32 eflags)
             eflags, cs, eip);   
 }
 
+void faultE(uint32 number, regs r, uint32 error, uint32 eip, uint32 cs,
+		uint32 eflags)
+{
+	(*ehtableE[number]) (number, r, error, eip, cs, eflags);
+}
 
-void faultE(uint32 number,
+void fault(uint32 number, regs r, uint32 eip, uint32 cs, uint32 eflags)
+{
+	(*ehtable[number]) (number, r, eip, cs, eflags);
+}
+
+static void __faultE(uint32 number,
             regs r, uint32 error,
             uint32 eip, uint32 cs, uint32 eflags)
 {
@@ -92,7 +125,7 @@ void faultE(uint32 number,
     terminate();    
 }
 
-void fault(uint32 number,
+static void __fault(uint32 number,
            regs r,
            uint32 eip, uint32 cs, uint32 eflags)
 {
@@ -148,7 +181,7 @@ void timer_irq(regs r, uint32 eip, uint32 cs, uint32 eflags)
 	task_t *task;
     kernel_timer++;
     
-	while(task = rsrc_queue_peek(timer_queue)){
+	while((task = rsrc_queue_peek(timer_queue))){
 		if(task->wait_time <= kernel_timer){
 			task = rsrc_dequeue(timer_queue);
 			rsrc_enqueue(run_queue, task);

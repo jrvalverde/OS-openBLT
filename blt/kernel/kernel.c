@@ -14,6 +14,7 @@
 #include "task.h"
 #include "smp.h"
 #include "team.h"
+#include "pager.h"
 
 void DEBUGGER(void);
 
@@ -45,7 +46,6 @@ uint32 memsize; /* pages */
 uint32 memtotal;
 
 static int uberportnum = 0, uberareanum = 0;
-
 
 void destroy_kspace(void)
 {
@@ -179,7 +179,7 @@ void preempt(task_t *task, int status)
 	if(current != idle_task) rsrc_enqueue(run_queue, current);
 
 	TCHKMAGIC(task);
-	if(task == tDEAD) panic("The dead have returned!");
+	if(task == (task_t *)tDEAD) panic("The dead have returned!");
 	
 	/* transfer control to the preemtee -- it had better not be on any queues */	
     current = task;
@@ -200,11 +200,6 @@ void swtch(void)
 	/* fast path for the case of only one running thread */
 	if(!run_queue->queue.count && (current->flags == tRUNNING)) return;
 	
-#ifdef __SMP__
-    if (smp_my_cpu ())
-        return;
-#endif
-    
     if(current->flags == tRUNNING) {
         if(current != idle_task) rsrc_enqueue(run_queue, current);
     }
@@ -262,7 +257,6 @@ task_t *new_thread(team_t *team, uint32 ip, int kernelspace)
 
 int brk(uint32 addr)
 {
-    int i;
     aspace_t *a = current->rsrc.owner->aspace;
     area_t *area = rsrc_find_area(current->rsrc.owner->heap_id);
     
@@ -284,8 +278,8 @@ int brk(uint32 addr)
 void go_kernel(void) 
 {
     task_t *t;
-    int i,j,n,len;
-    void *ptr,*src,*phys;
+    int i,len;
+    void *ptr,*phys;
     port_t *uberport;
 	area_t *uberarea;
 	team_t *team;
@@ -296,7 +290,8 @@ void go_kernel(void)
 	len *= 0x1000;
 
     uberport = rsrc_find_port(uberportnum = port_create(0,"uberport"));
-	uberarea = rsrc_find_area(uberareanum = area_create_uber(len, 0x100000));
+	uberarea = rsrc_find_area(uberareanum = area_create_uber(len,
+		(void *) 0x100000));
     kprintf("uberport allocated with rid = %d",uberportnum);
     kprintf("uberarea allocated with rid = %d",uberareanum);
 
@@ -338,17 +333,25 @@ void go_kernel(void)
                 t->rsrc.name);
     }
 
-    kprintf("creating idle task...");
+    kprintf("creating idler...");
     idle_task = new_thread(kernel_team, (int) idler, 1);
 	rsrc_set_name((resource_t*)idle_task,"idler");
 
-    kprintf("creating idle task...");
+    kprintf("creating grim reaper...");
     current = new_thread(kernel_team, (int) reaper, 1);
 	rsrc_set_name((resource_t*)current,"grim reaper");
 	reaper_sem = sem_create(0,"death toll");
 	rsrc_enqueue(run_queue, current);
 	live_tasks++;
-	
+
+	kprintf("creating pager...");
+	current = pager_task = new_thread(kernel_team, (int) pager, 1);
+	rsrc_set_name((resource_t*)current,"pager");
+	pager_port_no = port_create(0,"pager port");
+	pager_sem_no = sem_create(0, "pager sem");
+	rsrc_enqueue(run_queue, current);
+	live_tasks++;
+
 	rsrc_set_name((resource_t*)kernel,"kernel");
 
 #ifdef __SMP__
@@ -393,7 +396,7 @@ struct _kinfo
 const static char *copyright1 =
 	"OpenBLT Release I (built "__DATE__ ", " __TIME__ ")";
 const static char *copyright2 =
-    "    Copyright (c) 1998-1999 The OpenBLT Dev Team.  All rights reserved.";
+    "    Copyright (c) 1998-2000 The OpenBLT Dev. Team.  All rights reserved.";
  
 void kmain(void)
 {

@@ -7,7 +7,7 @@ endif
 
 SUBDIRS		:= lib kernel srv boot bin util
 
-image: subdirs
+image: log subdirs
 	./util/bootmaker $(INIFILES) $(LOCALINIFILES) -o boot/openblt.boot
 
 floppy: subdirs
@@ -30,7 +30,9 @@ go:
 	./util/bootmaker $(INIFILES) $(LOCALINIFILES) -o boot/openblt.boot
 	./util/netboot boot/openblt.boot $(IP)
 
-all::
+all:: log
+
+log::
 	@echo "### `date`" > $(BUILDLOG)
 
 clean::

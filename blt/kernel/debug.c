@@ -13,15 +13,14 @@
 #include "rights.h"
 #include "resource.h"
 #include "list.h"
-
-typedef struct { uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax; } regs;
+#include "i386.h"
 
 extern list_t resource_list;
 
 #define RMAX 1024
 
 static char *tstate[] =
-{ "KERNL", "RUNNG", "READY", "DEAD ", "WAIT ", "S/IRQ", "S/TMR" };
+{ "KERNL", "RUNNG", "READY", "DEAD ", "WAIT ", "S/IRQ", "S/TMR", "S/PAG" };
 
 uint32 readnum(const char *s);
 

@@ -40,4 +40,5 @@
 #define ERR_RECVPORT    -5
 #define ERR_WOULD_BLOCK -6
 
+#define ERR_SEGV        -7
 #endif

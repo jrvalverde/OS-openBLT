@@ -50,6 +50,8 @@ void rsrc_enqueue_ordered(resource_t *rsrc, task_t *task, uint32 wake_time);
 task_t *rsrc_dequeue(resource_t *rsrc);
 const char *rsrc_typename(resource_t *rsrc);
 
+task_t *rsrc_queue_peek(resource_t *rsrc);
+
 #define rsrc_find_task(id)   ((task_t *) rsrc_find(RSRC_TASK,   id))
 #define rsrc_find_port(id)   ((port_t *) rsrc_find(RSRC_PORT,   id))
 #define rsrc_find_aspace(id) ((aspace_t *) rsrc_find(RSRC_ASPACE, id))

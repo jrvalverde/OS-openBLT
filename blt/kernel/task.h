@@ -7,6 +7,7 @@
 
 #include "resource.h"
 #include "list.h"
+#include "team.h"
 
 #define tKERNEL       0
 #define tRUNNING      1
@@ -15,6 +16,7 @@
 #define tWAITING      4
 #define tSLEEP_IRQ    5
 #define tSLEEP_TIMER  6
+#define tSLEEP_PAGING 7
 
 #define PARANOID 0
 
@@ -46,8 +48,9 @@ struct __task_t {
 	uint32 cr3;
 	uint32 scount;
 	void *kstack, *ustack;
-
 	area_t *stack_area;
+	team_t *team; /* team to which this task belongs */
+
 #ifdef __SMP__
     int has_cpu, processor, last_processor;
 #endif
