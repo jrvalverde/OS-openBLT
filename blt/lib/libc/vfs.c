@@ -28,6 +28,7 @@
 ** SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <dirent.h>
@@ -44,8 +45,6 @@
 static int vfs_public_port, vfs_local_port, vfs_remote_port, filename_area;
 static char *nameptr;
 
-static void _init (void);
-static void _fini (void);
 static void __vfs_openconn (int src_port, int filename_area);
 static void __vfs_scroll_area (vfs_fd *fd, int offset);
 ssize_t _vfs_read (void *cookie, void *buf, size_t count);
@@ -60,9 +59,7 @@ weak_alias (_stat, stat)
 
 void __libc_init_vfs (void)
 {
-	char cmd;
-	int nh, i;
-	msg_hdr_t mh;
+	int nh;
 
 	nh = namer_newhandle ();
 	while ((vfs_public_port = namer_find (nh, "vfs")) <= 0)
@@ -183,7 +180,10 @@ DIR *_opendir (const char *name)
 
 struct dirent *_readdir (DIR *dirp)
 {
-	return (dirp->left-- > 0) ? dirp->current++ : NULL;
+	if (dirp == NULL)
+		return NULL;
+	else
+		return (dirp->left-- > 0) ? dirp->current++ : NULL;
 }
 
 int _closedir (DIR *dirp)

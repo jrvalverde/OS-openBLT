@@ -1,4 +1,4 @@
-/* $Id$
+ /* $Id$
 **
 ** Copyright 1998 Brian J. Swetland
 ** All rights reserved.
@@ -136,12 +136,128 @@ void memory_status(void)
 	 
 }
 
-void memory_init(void) 
+#if 0
+/* return phys page number of first page of allocated group */
+uint32 getpages(int count)
 {
-    int i;
+    memsize -= count;
+    Assert(memsize > 512);
+    
+    return memsize;
+}
 
-    for(i=0;i<KMMAX;i++)
-        km_map[i].fresh_chain = kgetpages(1,3);    
+/* alloc count physical pages, map them into kernel space, return virtaddr AND phys */
+void *kgetpages2(int count, int flags, uint32 *phys)
+{
+    nextmem -= 4096*count;
+    *phys = getpages(count);
+    aspace_maphi(flat, *phys, nextmem/0x1000, count, flags);
+    *phys *= 4096;
+    return (void *) nextmem;
+}
+
+/* alloc count physical pages, map them into kernel space, return virtaddr */
+void *kgetpages(int count, int flags)
+{
+    nextmem -= 4096*count;
+    aspace_maphi(flat, getpages(count), nextmem/0x1000, count, flags); 
+    return (void *) nextmem;
+}
+#endif
+
+/* kernel 'heap' is allocated top down ... top three pages used by the bootstrap */
+static uint32 nextmem = 0x80400000 - 4*4096;
+
+static uint32 *pagelist = NULL;
+static uint32 freepage = 0;
+
+extern aspace_t *flat;
+
+void putpage(uint32 number)
+{
+	pagelist[number] = freepage;
+	freepage = number;
+}
+
+uint32 getpage(void)
+{
+	uint32 n = freepage;
+	if(n){
+		freepage = pagelist[n];
+	} else {
+		asm("hlt");
+		
+		panic("Out of physical memory");
+	}
+	return n;
+}
+
+void kfreepage(void *vaddr)
+{
+}
+
+void *kgetpage(uint32 *phys)
+{
+	uint32 pg = getpage();
+	*phys = pg * 0x1000;
+	nextmem -= 4096;
+	aspace_maphi(flat, pg, nextmem/0x1000, 1, 3);
+	return (void *) nextmem;
+}
+
+void *kgetpages(int count)
+{
+	int i,n;
+    nextmem -= 4096*count;
+	for(n=nextmem/0x1000,i=0;i<count;n++,i++){
+		aspace_maphi(flat, getpage(), n, 1, 3); 
+	}
+    return (void *) nextmem;
+}
+
+/* map specific physical pages into kernel space, return virtaddr */
+void *kmappages(int phys, int count, int flags)
+{
+    nextmem -= 4096*count;
+    aspace_maphi(flat, phys, nextmem/0x1000, count, flags); 
+    return (void *) nextmem;
+}
+
+void memory_init(uint32 bottom_page, uint32 top_page) 
+{
+	int i,count;
+	
+	/* we can track 1024 pages for every 4K of pagelist */
+	count = ((top_page - bottom_page) / 1024) + 1;
+	
+	/* allocate the pagelist */
+	top_page -= count;
+	
+#if 0
+	top_page = 2048+32;
+	count = 4;
+#endif
+	
+	nextmem -= 4096*count;
+	pagelist = (uint32 *) nextmem;
+	aspace_maphi(flat, top_page, nextmem/0x1000, count, 3);
+
+#if 0
+	bottom_page = 1024;
+	top_page = 2048;	
+#endif
+		
+	/* setup the pagelist */
+	freepage = 0;
+	for(i=top_page;i>=bottom_page;i--){
+		pagelist[i] = freepage;
+		freepage = i;
+	}
+	
+	/* setup the memory pools */
+    for(i=0;i<KMMAX;i++){
+        km_map[i].fresh_chain = kgetpages(1);
+	}
 }
 
 
@@ -172,7 +288,7 @@ void *kmallocP(int size)
         } else {
                 /* gotta grab a new page */
             km->fresh_count = 4096 / km->size;        
-            km->fresh_chain = kgetpages(1,3);            
+            km->fresh_chain = kgetpages(1);            
         }
     }
     

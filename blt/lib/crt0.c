@@ -47,7 +47,6 @@ static void run_all (const char *name);
 
 void _start(int argc, char **argv)
 {
-	int res;
 	elf32_sec_hdr_t *last;
 
 	hdr = (elf32_hdr_t *) 0x1000;
@@ -62,9 +61,7 @@ void _start(int argc, char **argv)
 		_elf_find_section_data (hdr, ".bss"), _elf_section_size (hdr, ".bss"));
 
 	run_all ("_init");
-	res = main (argc, argv);
-	//run_all ("_fini");
-	os_terminate(res);
+	os_terminate (main (argc, argv));
 }
 
 static void run_all (const char *name)
@@ -116,8 +113,9 @@ int _elf_section_size (elf32_hdr_t *hdr, char *name)
 int ___brk_addr;
 int __environ;
 
-void abort ()
+void __attribute__ ((noreturn)) abort ()
 {
+	for (;;) ;
 }
 
 void atexit ()

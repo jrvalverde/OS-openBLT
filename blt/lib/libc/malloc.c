@@ -1270,9 +1270,7 @@ static struct mallinfo current_mallinfo = {  0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 /* Tracking mmaps */
 
 static unsigned int n_mmaps = 0;
-static unsigned int max_n_mmaps = 0;
 static unsigned long mmapped_mem = 0;
-static unsigned long max_mmapped_mem = 0;
 
 /* 
   Debugging support 

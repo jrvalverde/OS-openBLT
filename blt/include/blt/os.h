@@ -109,9 +109,9 @@ typedef struct
 } rsrc_info;
 		
 		
-#define UBER_NULL_REQUEST    0
-#define UBER_MIN_RESERVED    0xf0000000
-#define UBER_MAX_RESERVED    0xffffffff
+#define META_NULL_REQUEST    0
+#define META_MIN_RESERVED    0xf0000000
+#define META_MAX_RESERVED    0xffffffff
 
 #endif
 

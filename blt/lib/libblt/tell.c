@@ -31,6 +31,7 @@
 #include <string.h>
 #include <blt/syscall.h>
 #include <blt/libsyms.h>
+#include <blt/namer.h>
 #include <blt/tell.h>
 
 static char *name;

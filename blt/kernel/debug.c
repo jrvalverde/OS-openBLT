@@ -342,6 +342,19 @@ void checksum (char *range)
 	kprintf ("%x", ipchksum ((unsigned short *) begin, end - begin));
 }
 
+static void dumppgroup(uint32 addr)
+{
+	pagegroup_t *pg = (pagegroup_t*) addr;
+	anode_t *an = pg->areas;
+	kprintf("pgroup @ 0x%x",addr);
+	while(an){
+		kprintf("  area @ 0x%x (id %d) (owner %d)",an->area,an->area->rsrc.id,
+				an->area->rsrc.owner->rsrc.id);
+		an = an->next;
+	}
+	
+}
+
 static char linebuf[80];
 void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
 {
@@ -353,7 +366,8 @@ void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
     for(;;){
         krefresh();
         line = kgetline(linebuf,80);
-		
+
+		if(!strncmp(line,"pgroup ",7)) { dumppgroup(readnum(line+7)); continue; }
         if(!strncmp(line,"resource ", 9)) { dumponersrc(line+9); continue; }
         if(!strcmp(line,"resources")) { dumprsrc(resource_list); continue; }
 		if(!strncmp(line,"queue ",6)) { dumpqueue(readnum(line+6)); continue; }

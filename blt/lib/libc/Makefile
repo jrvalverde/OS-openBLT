@@ -2,11 +2,11 @@
 
 include ../../make.conf
 
-CFLAGS = $(CF) -I../../include
+CFLAGS = $(CF) -I../../include -Wall
 
 all: libc.a libc.so libkern.a
 
-MINIMAL = string.o snprintf.o bcmp.o bzero.o strcmp.o strcpy.o strlen.o misc.o strlcat.o strlcpy.o
+MINIMAL = string.o snprintf.o bcmp.o bzero.o strcmp.o strcpy.o strlen.o strlcat.o strlcpy.o
 EXTRA = malloc.o memory.o printf.o vfs.o errno.o exec.o fdl.o stdio.o qsort.o stdlib.o
 
 libc.a: $(MINIMAL) $(EXTRA)

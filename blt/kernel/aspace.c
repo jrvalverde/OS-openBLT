@@ -76,21 +76,23 @@ void aspace_print(aspace_t *a)
 aspace_t *aspace_create(void) 
 {
     int i;
-    uint32 phys;
-	uint32 *raw;
+    uint32 phys0,phys1;
+	uint32 *raw0,*raw1;
     
     aspace_t *a = kmalloc(aspace_t);
-	raw = kgetpages2(2,3,&phys);
-	a->pdir = raw;
-	a->ptab = &raw[1024];
+	raw0 = kgetpage(&phys0);
+	raw1 = kgetpage(&phys1);
+	a->pdir = raw0;
+	a->ptab = raw1;
 	a->high = flat->high;
+	a->pdirphys = phys0;
 	a->areas = NULL;
 	
     for(i=0;i<1024;i++){
         a->pdir[i] = 0;
         a->ptab[i] = 0;
     }
-    a->pdir[0] = (phys + 4096) | 7;
+    a->pdir[0] = phys1 | 7;
     a->pdir[512] = (_cr3 + 2*4096) | 3;
 	rsrc_bind(&a->rsrc, RSRC_ASPACE, NULL);
     return a;
@@ -218,7 +220,7 @@ int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 fl
     /* allocate pages, fill phys_page_t's, and map 'em */
     for(ppo=0,pp=pg->pages,i=0;i<size;i++){
         if(!(flags & AREA_PHYSMAP)) {
-            p = getpages(1);
+            p = getpage();
         }
         aspace_map(aspace, p, at, 1, 7);
         pp->addr[ppo] = p;
@@ -423,7 +425,7 @@ int area_resize(aspace_t *aspace, int area_id, off_t size)
             pp0->lockcount = 0;
             pp = pp0;
         }
-        p = getpages(1);
+        p = getpage();
         aspace_map(aspace, p, at, 1, 7);
         pp->addr[ppo] = p;
         at++;

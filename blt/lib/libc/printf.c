@@ -34,6 +34,8 @@
 
 static int __libc_console_public_port, __libc_console_port;
 
+void va_snprintf (char *s, int len, const char *fmt, ...);
+
 void __libc_init_console (void)
 {
 	int nh;
@@ -63,5 +65,6 @@ int _printf(char *fmt,...)
 	kmsg.src = __libc_console_port;
 	kmsg.dst = __libc_console_public_port;
 	l = port_send(&kmsg);
+	return -1; /* FIXME */
 }
 

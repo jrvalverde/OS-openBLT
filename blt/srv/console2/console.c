@@ -425,8 +425,8 @@ int console_main(void)
         ;
 #endif
     
-	os_thread(keyboard_irq_thread);
-	os_thread(input_thread);
+	thr_create(keyboard_irq_thread, NULL, "console:kbd");
+	thr_create(input_thread, NULL, "console:input");
     console_thread();
     
     return 0;
@@ -434,8 +434,8 @@ int console_main(void)
 
 int main(void)
 {
-	os_thread (console_main);
-	while (!ready) ;
+	thr_create(console_main, NULL, "console:main");
+	while(!ready) ;
 	return 0;
 }
 

@@ -1,6 +1,6 @@
 # $Id$
 
-all: namer console2 ne2000 video vfs init fish
+all: namer console2 ne2000 video vfs init fish network
 
 console2::
 	@echo "--- srv/console2 --------"
@@ -30,6 +30,10 @@ init::
 	@echo "--- srv/init -------------"
 	@cd init ; $(MAKE)
 
+network::
+	@echo "--- srv/network -------------"
+	@cd network ; $(MAKE)
+
 clean:
 	@cd console2 ; $(MAKE) clean
 	@cd namer ; $(MAKE) clean
@@ -38,3 +42,4 @@ clean:
 	@cd fish ; $(MAKE) clean
 	@cd vfs ; $(MAKE) clean
 	@cd init ; $(MAKE) clean
+	@cd network ; $(MAKE) clean

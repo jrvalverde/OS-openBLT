@@ -54,11 +54,16 @@ void run(void)
 void do_command(int argc, char **argv)
 {
 	struct stat s;
+	int thid;
 	
 	if(!strcmp(argv[0], "exit")) os_terminate (1);
 	
 	if(!stat(argv[0],&s)){
-		thr_join (thr_detach (run), 0);
+		if((thid = execve(argv[0],argv,NULL)) > 0){
+			thr_wait(thid);
+		} else {
+			printf("bltsh: failed to execve(): %s\n", argv[0]);
+		}	
 	} else {
 		/* try our "path" */
 		char *x = (char *) malloc(7 + strlen(argv[0]));
@@ -69,7 +74,11 @@ void do_command(int argc, char **argv)
 		argv[0] = x;
 		
 		if(!stat(x,&s)){
-			thr_join (thr_detach (run), 0);
+			if((thid = execve(argv[0],argv,NULL)) > 0){
+				thr_wait(thid);
+			} else {
+				printf("bltsh: failed to execve(): %s\n", argv[0]);
+			}
 		} else {
 			printf("bltsh: no such file or directory: %s\n", argv[0]);
 		}

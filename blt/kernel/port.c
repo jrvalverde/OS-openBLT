@@ -33,6 +33,8 @@
 
 #include "assert.h"
 
+#define MAX_MSGCOUNT    16
+
 int port_create(int restrict)
 {
     port_t *p;
@@ -156,12 +158,12 @@ int port_send(msg_hdr_t *mh)
            (p->restrict != mh->src)) return ERR_PERMISSION;  XXX */      
     }
 
-	while(p->msgcount > 15){
+	while(p->msgcount >= MAX_MSGCOUNT){
 		int status;
-        if(p->nowait) return ERR_WOULD_BLOCK;
+		if(p->nowait) return ERR_WOULD_BLOCK;
 		if(status = wait_on(p->sendqueue)) return status;
 	}
-		
+
         /* ignore invalid sizes/locations */
     if( (size < 1) ||
         (((uint32) msg) > 0x400000) ||
@@ -177,7 +179,7 @@ int port_send(msg_hdr_t *mh)
             m->data = (void *) msg_pool;
             msg_pool = (chain_t *) msg_pool->next;        
         } else {
-            m->data = kgetpages(1,3);
+            m->data = kgetpages(1);
         }
     }
 
@@ -258,8 +260,12 @@ int port_recv(msg_hdr_t *mh)
     
         /* unchain from the head of the queue */
     if(!(p->first = p->first->next)) p->last = NULL;    
-    
-    p->msgcount--;
+
+	if(p->msgcount == MAX_MSGCOUNT) {
+		task_t *task = rsrc_dequeue (p->sendqueue);
+		if(task) task_wake(task, ERR_NONE);
+	}
+	p->msgcount--;
 
         /* add to the freepool */
     if(m->size < 256){

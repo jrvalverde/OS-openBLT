@@ -71,8 +71,12 @@ void task_wake(task_t *task, int status);
 int wait_on(resource_t *rsrc);
 
 void task_call(task_t *t);
-int thr_spawn (int area_id, int addr, char * const *argv, char * const *envp,
-    volatile uint32 **stack);
 
+int thr_kill(int task_id);
+int thr_wait(int task_id);
+int thr_spawn(uint32 ip, uint32 sp, 
+			  uint32 area0, uint32 vaddr0, 
+			  uint32 area1, uint32 vaddr1,
+			  const char *name);
 #endif
 

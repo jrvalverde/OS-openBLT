@@ -88,7 +88,7 @@ void sleep(int ticks)
 #define p_voidptr(n) ((void *) esp[n])
 #define p_charptr(n) ((char *) esp[n])
 #define res r.eax
-int ubercall (volatile uint32 *esp);
+int metacall (volatile uint32 *esp);
 
 void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 	volatile uint32 *esp)
@@ -100,12 +100,6 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 	
     switch(r.eax){
     case BLT_SYS_os_terminate :
-        //kprintf("task %X: os_terminate(%x)",current->rsrc.id,r.eax);
-        if(p_uint32(1) == 0x00420023) {
-            kprintf("");
-            kprintf("Kernel terminated by user process");
-            destroy_kspace();
-        }
         terminate();    
         break;
 
@@ -166,8 +160,8 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 		res = rsrc_identify(p_uint32(1));
 		break;
 
-	case BLT_SYS_os_uber :
-		res = ubercall(esp);
+	case BLT_SYS_os_meta :
+		res = metacall(esp);
 		break;
 		
     case BLT_SYS_sem_create :
@@ -238,25 +232,25 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
         res = area_resize(current->addr, p_uint32(1), p_uint32(2));
         break;
 
-	case BLT_SYS_rsrc_find_id :
-		break;
-
-	case BLT_SYS_rsrc_find_name :
-		break;
-
-    case BLT_SYS_os_thread :
 	case BLT_SYS_thr_create : {
+		char *name;
         int i;    
         task_t *t;
-        
         t = new_thread(current->addr, p_uint32(1), 0);
 		if(t) {
+			*((unsigned int *) (t->ustack + 0xfec)) = p_uint32(2);
 			t->text_area = current->text_area;
-			for(i=0;current->rsrc.name[i] && i<31;i++) {
-				t->rsrc.name[i] = current->rsrc.name[i];
+			name = p_charptr(3);
+			if (name == NULL)
+			{
+				for(i=0;current->rsrc.name[i] && i<31;i++) {
+					t->rsrc.name[i] = current->rsrc.name[i];
+				}
+				if(i<30) t->rsrc.name[i++] = '+';
+				t->rsrc.name[i] = 0;    
 			}
-			if(i<30) t->rsrc.name[i++] = '+';
-			t->rsrc.name[i] = 0;    
+			else
+				rsrc_set_name((resource_t *)t, name);
 			t->rsrc.owner = current;        
 			res = t->rsrc.id;
 		} else {
@@ -271,69 +265,31 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 	case BLT_SYS_thr_suspend :
 		break;
 
+	case BLT_SYS_thr_spawn :
+		res = thr_spawn(p_uint32(1), p_uint32(2),
+						p_uint32(3), p_uint32(4),
+						p_uint32(5), p_uint32(6),
+						p_charptr(7));
+		break;
+		
 	case BLT_SYS_thr_kill :
 		break;
 
-	case BLT_SYS_thr_detach :
-		res = thr_detach (p_uint32 (1));
+	case BLT_SYS_thr_wait :
+		res = thr_wait(p_uint32(1));
 		break;
 
-	case BLT_SYS_thr_join :
-		res = thr_join (p_uint32 (1), p_uint32 (2));
-		break;
-
-	case BLT_SYS_thr_spawn :
-		/*
-		 * if thr_spawn is successful, the current userspace stack will
-		 * be gone when we get back here, so we have to copy the arguments
-		 * now in case it works.
-		 */
- 		i = -1;
-		orig_argv = p_voidptr (3);
-		while (orig_argv[i] != NULL) i++;
-		
-		temp_argv = kmallocB (i * sizeof (char *));
-		
-		for (j = total = 0; j < i; j++) {
-			len = strlen(orig_argv[j]) + 1;
-			total += len;
-			temp_argv[j] = kmallocB(len);
-			strlcpy (temp_argv[j], orig_argv[j], len);
-		}
-
-		if (!(res = thr_spawn (p_uint32 (1), p_uint32 (2),
-				(char * const *) p_voidptr (3),
-				(char * const *) p_voidptr (4), &esp)))
-		{
-			total = (total & ~3) ? (total & ~3) + 4 : total;
-			c = (char *) (0x400000 - total);
-			argv = (char **) (c - i * sizeof (char *));
-			for (j = 0; j < i; j++) {
-				strcpy (c, temp_argv[j]);
-				argv[j] = c;
-				c += strlen (temp_argv[j]) + 1;
-			}
-
-			eip = p_uint32 (2) + 0x74;
-			esp = (uint32 *) 0x400000 - (total + i * sizeof (char *) + 12);
-			*(esp + 1) = i;
-			*(esp + 2) = (uint32) argv;
-		}
-
-		for (j = 0; j < i; j++) {
-			kfreeB(strlen(temp_argv[j]) + 1, temp_argv[j]);
-		}
-		kfreeB (i * sizeof (char *), temp_argv);
-		break;
+	default:
+		res = -1;
     }
 }
 
-int ubercall (volatile uint32 *esp)
+int metacall (volatile uint32 *esp)
 {
 	switch (p_uint32 (0))
 	{
-		case UBER_NULL_REQUEST :
-			break;
+		case META_NULL_REQUEST :
+			return 0;
 
 		default:
 			return -1;

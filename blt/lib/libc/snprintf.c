@@ -43,7 +43,7 @@ static char hexmap[] = {
 
 void va_snprintf(char *b, int l, char *fmt, va_list pvar) 
 {
-    int n,i,j;
+    int n,i;
     unsigned u;
     unsigned long long ull;
     char *t,d[10], mod_l, mod_ll;

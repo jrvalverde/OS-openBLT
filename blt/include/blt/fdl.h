@@ -54,7 +54,7 @@ void __libc_init_fdl (void);
 void __libc_fini_fdl (void);
 
 int _fdl_alloc_descriptor (fdl_type *handler, void *cookie);
-int _fdl_free_descriptor (int desc);
+void _fdl_free_descriptor (int desc);
 
 #endif
 

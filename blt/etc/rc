@@ -4,6 +4,10 @@
 # rc.boot to get enough services going to proceed normally.  We can
 # run any program here, so we must use full pathnames.
 
-# /boot/vfs_test
+# /boot/network
+# /boot/tell network load eth ipv4 arp ne
+# /boot/tell network probe ne
+# /boot/tell network config ne0 ipv4 up 10.0.1.5 255.255.255.0
+
 /boot/bltsh
 

@@ -220,6 +220,8 @@ void *_elf_lookup_sym (int filenum, const char *name);
 void *elf_lookup_sym (int filenum, const char *name);
 void *_elf_find_section_data (elf32_hdr_t *hdr, char *name);
 void *elf_find_section_data (elf32_hdr_t *hdr, char *name);
+int _elf_section_size (elf32_hdr_t *hdr, char *name);
+int elf_section_size (elf32_hdr_t *hdr, char *name);
 
 #endif
 

@@ -52,8 +52,6 @@ struct fs_type *fs_drivers;
 struct superblock *mount_list = NULL;
 hashtable_t *conn_table;
 
-volatile int ready = 0;
-
 //extern struct fs_type rootfs, bootfs, portalfs;
 extern struct fs_type rootfs, bootfs;
 extern void __libc_init_console ();
@@ -257,6 +255,12 @@ vfs_res_t *vfs_opendir (struct client *client, vfs_cmd_t *vc)
 
 	/* is opendir supported? */
 	super = fs_find (dir);
+	if (super == NULL)
+	{
+		res->status = VFS_ERROR;
+		res->errno = ENOENT;
+		return res;
+	}
 	if (super->sb_vops->opendir == NULL)
 	{
 		res->status = VFS_ERROR;
@@ -443,7 +447,7 @@ vfs_res_t *vfs_rstat (struct client *client, vfs_cmd_t *vc)
 	return res;
 }
 
-int vfs_main (void)
+int vfs_main (volatile int *ready)
 {
 	int nh, size;
 	msg_hdr_t msg, reply;
@@ -481,7 +485,7 @@ int vfs_main (void)
 	vfs_mount ("/boot", "bootfs", 0, NULL);
 	//vfs_mkdir ("/portal", 755);
 	//vfs_mount ("/portal", "portalfs", 0, NULL);
-	ready = 1;
+	*ready = 1;
 
 	for (;;)
 	{
@@ -511,8 +515,9 @@ int vfs_main (void)
 
 			case VFS_OPENDIR:
 				res = vfs_opendir (client, &vc);
-				shm_write_dir (client->ioctx.fdarray.ofile[res->data[0]],
-					0, 0, vc.data[3], &res->data[1], &res->data[2]);
+				if (res->status == VFS_OK)
+					shm_write_dir (client->ioctx.fdarray.ofile[res->data[0]],
+						0, 0, vc.data[3], &res->data[1], &res->data[2]);
 				break;
 
 			case VFS_CLOSEDIR:
@@ -553,7 +558,9 @@ int vfs_main (void)
 
 int main (void)
 {
-	os_thread (vfs_main);
+	volatile int ready = 0;
+
+	thr_create (vfs_main, (int *) &ready, "vfs");
 	while (!ready) ;
 	return 0;
 }
