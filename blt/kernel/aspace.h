@@ -73,10 +73,7 @@ struct __aspace_t {
     uint32 *pdir;         /* page directory  -- 4k */
     uint32 *ptab;         /* page table      -- 4k */
     uint32 *high;         /* high page table -- 4k (0x8000000 -> ) */
-#if 0
-    uint32 *pagedir;      /* the page directory */
-    uint32 *pagetabs[];   /* pointers to the page tables */
-#endif
+	uint32 pdirphys;      /* physical address of page directory */
 };
 
 

@@ -32,7 +32,6 @@
 #include <blt/types.h>
 #include <blt/os.h>
 
-int   os_thread(void *addr);
 void  os_terminate(int status);
 void  os_console(char *string);
 int   os_brk(int addr);
@@ -64,13 +63,17 @@ int port_recv(msg_hdr_t *mh);
 #define port_set_restrict(port, restrict) port_option(port,PORT_OPT_SETRESTRICT,restrict);
 #define port_slave(master, slave) port_option(slave,PORT_OPT_SLAVE,master)
 
-int thr_create(void *addr, void *data);
+int thr_create(void *addr, void *data, const char *name);
 int thr_resume(int thr_id);
 int thr_suspend(int thr_id);
 int thr_kill(int thr_id);
 int thr_detach(void (*addr)(void));
 int thr_join(int thr_id, int options);
-int thr_spawn (int area_id, int virt, char * const *argv, char * const *envp);
+
+int thr_spawn(uint32 eip, uint32 esp,
+			  int area0, uint32 vaddr0,
+			  int area1, uint32 vaddr1,
+			  const char *name);
 
 int area_create(off_t size, off_t virt, void **addr, uint32 flags);
 int area_clone(int area_id, off_t virt, void **addr, uint32 flags);
@@ -87,18 +90,23 @@ int rsrc_find_id (rsrc_info *info, int rsrc_id, int rsrc_type);
 int rsrc_find_name (rsrc_info *info, const char *name, int rsrc_type);
 
 /*
- * the ubercall is for random things that are not compiled into the kernel
+ * the metacall is for random things that are not compiled into the kernel
  * by default, but might be useful for debugging, etc.  if you think you
  * need to add a syscall temporarily in order to debug something, using
  * this will save you some time, since you only have to edit two files
  * instead of four.
  *
  * the request parameter is used to multiplex the call among many different
- * purposes.  the range UBER_MIN_RESERVED to UBER_MAX_RESERVED is for
+ * purposes.  the range META_MIN_RESERVED to META_MAX_RESERVED is for
  * temporary purposes that are not submitted to the repository.  request
  * defines are in include/blt/os.h.
  */
 
-int os_uber(unsigned int request, ...);
+int os_meta(unsigned int request, ...);
+
+/* compatability defines */
+#define os_thread(addr) thr_create(addr,NULL,NULL);
+#define thr_join(id,opt) thr_wait(id);
+#define thr_detach(addr) (0)
 
 #endif

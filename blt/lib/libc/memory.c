@@ -27,6 +27,7 @@
 */
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <blt/types.h>
 #include <blt/syscall.h>
 #include <blt/libsyms.h>
@@ -98,7 +99,6 @@ void * _default_morecore(long size)
 void __libc_init_memory(unsigned int top_of_binary,
                         unsigned int start_bss, unsigned int bss_length)
 {
-    char m[80];
 	int i;
     unsigned char *x = (unsigned char *) start_bss;
     unsigned int tob = (top_of_binary/4096+2)*4096;

@@ -66,6 +66,7 @@ int main (void)
 */
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <blt/hash.h>
 
 static unsigned int table_size[] = { 7, 19, 43, 103, 229, 463, 1021, 2083, 4219,

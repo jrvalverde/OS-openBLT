@@ -55,28 +55,6 @@ OpenBLT Release I (built " __DATE__ ", " __TIME__ ")
     Copyright (c) 1998-1999 The OpenBLT Dev Team.  All rights reserved.
 \n";
 
-char **params;
-int area;
-
-void run1 (void)
-{
-	void *ptr;
-
-	thr_spawn (area_clone (area, 0, &ptr, 0), 0x1000, params, NULL);
-	os_console ("thr_spawn failed\n");
-	os_debug ();
-	os_terminate (1);
-}
-
-void run2 (void)
-{
-	__libc_init_console ();
-	__libc_init_vfs ();
-	execve (params[0], params, NULL);
-	printf ("execve failed %d\n", errno);
-	os_terminate (1);
-}
-
 int boot_get_num (boot_dir *dir, const char *name)
 {
 	int i;
@@ -94,11 +72,13 @@ char *boot_get_data (boot_dir *dir, int num)
 
 int main (void)
 {
-	char *c, *rcboot, filenum, *line, *boot_servers;
+	int area,sarea;
+	char *c, *rcboot, filenum, *line, *boot_servers, **params;
 	int i, j, space, p_argc, boot, fd, thr_id, res, len, total, prog;
 	void *ptr;
 	boot_dir *dir;
 
+	
 	if (!(boot = area_clone (3, 0, (void **) &dir, 0)))
 	{
 		os_console ("no uberarea; giving up");
@@ -153,9 +133,11 @@ int main (void)
 						&ptr, 0);
 					memcpy (ptr, boot_get_data (dir, prog),
 						dir->bd_entry[prog].be_vsize);
+					sarea = area_create (0x1000, 0, &ptr, 0);
 					strlcat (boot_servers, " ", 256);
 					strlcat (boot_servers, params[0], 256);
-                    thr_join (thr_detach (run1), 0);
+					thr_wait (thr_spawn (0x1074, 0x3ffffd, area, 0x1000,
+						sarea, 0x3ff000, params[0]));
                 }
                 len = 0;
             }
@@ -219,8 +201,10 @@ int main (void)
                     params[p_argc] = NULL;
                     if (!strcmp (params[0], "exit"))
                         os_terminate (1);
-
-                    thr_join (thr_detach (run2), 0);
+						
+					i = execve (params[0], params, NULL);
+					if(i>0) thr_wait(i);
+					else printf("cannot execute \"%s\"\n",params[0]);
                 }
                 len = 0;
 			}

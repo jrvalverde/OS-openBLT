@@ -30,6 +30,7 @@
 */
 
 #include <stdlib.h>
+#include <blt/syscall.h>
 #include <blt/qsem.h>
 
 qsem_t *qsem_create (int count)

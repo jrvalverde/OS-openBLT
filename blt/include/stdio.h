@@ -45,6 +45,7 @@ int getc (FILE *stream);
 int _getchar (void);
 int getchar (void);
 
+int _printf (const char *format, ...);
 int printf (const char *format, ...);
 
 #endif

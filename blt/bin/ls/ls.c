@@ -51,6 +51,11 @@ int main (int argc, char **argv)
 	path = (argc == 1) ? "/" : argv[1];
 	i = maxlen = 0;
 	dir = opendir (path);
+	if (dir == NULL)
+	{
+		printf ("ls: %s: no such file or directory\n", path);
+		return 0;
+	}
 	while ((ent[i] = readdir (dir)) != NULL)
 	{
 		maxlen = (strlen (ent[i]->d_name) > maxlen) ? strlen (ent[i]->d_name) :

@@ -31,6 +31,8 @@
 #include "task.h"
 
 extern char *gdt;
+extern int live_tasks;
+
 void thread_bootstrap(void);
 void kthread_bootstrap(void);
 
@@ -56,7 +58,7 @@ task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel)
     task_t *t = kmalloc(task_t);	
 	uint32 *SP;
 	
-	t->kstack = kgetpages(1,7);
+	t->kstack = kgetpages(1);
     t->cr3  = (((uint32) a->pdir[0]) & 0xFFFFFF00) - 4096;
 	t->esp = (uint32) ( ((char *) t->kstack) + 4092 );
 	t->esp0 = t->esp;
@@ -114,31 +116,47 @@ task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel)
     return t;
 }
 
-int thr_spawn (int area_id, int addr, char * const *argv, char * const *envp,
-	volatile uint32 **stack)
+
+int thr_wait(int thr_id)
 {
-	int i, temp_area;
-	void *src, *dst, *phys;
-	area_t *text;
-	aspace_t *a;
-
-	if ((text = rsrc_find_area (area_id)) == NULL)
-		return -1;
-
-	rsrc_set_name((resource_t*)current,argv[0]);
-	a = current->addr;
-
-	/* beware, the old argv and envp are no good any longer. */
-	aspace_clr (a, 0, 512);
-	src = (void *) (text->virt_addr << 12);
-	dst = kgetpages2 (text->length, 3, (uint32 *) &phys);
-	current->text_area = area_create (a, text->length * 0x1000, addr,
-		&phys, 0x1010);
-	for (i = 0; i < text->length * 0x1000; i++)
-		*((char *) dst + i) = *((char *) src + i);
-	a->heap_id = area_create (a, 0x2000, 0x1000 + text->length * 0x1000,
-		&phys, 0);
-
-	return 0;
+	task_t *task = rsrc_find_task(thr_id);
+	
+	if(task) {
+		wait_on((resource_t *)task);
+		return ERR_NONE;
+	} else {
+		return ERR_RESOURCE;
+	}
 }
+
+int thr_spawn(uint32 ip, uint32 sp, 
+			  uint32 area0, uint32 vaddr0, 
+			  uint32 area1, uint32 vaddr1,
+			  const char *name)
+{
+	aspace_t *aspace;
+	task_t *task;
+	area_t *area;
+	int id;
+	void *addr;
+	
+	if(!(aspace = aspace_create())) return -1;	
+	if(!(task = task_create(aspace, ip, sp, 0))) return -1;
+	rsrc_bind((resource_t *)task, RSRC_TASK, current);
+	rsrc_bind(&aspace->rsrc, RSRC_ASPACE, task);
+	
+	id = area_clone(aspace, area0, vaddr0, &addr, 0);
+	aspace->heap_id = id;
+	if(area = rsrc_find_area(id)) rsrc_set_owner(&area->rsrc, task);
+	
+	id = area_clone(aspace, area1, vaddr1, &addr, 0);
+	if(area = rsrc_find_area(id)) rsrc_set_owner(&area->rsrc, task);
+
+	rsrc_set_name((resource_t *)task, name);
+	rsrc_enqueue(run_queue, task);
+	live_tasks++;
+
+	return task->rsrc.id;
+}
+
 

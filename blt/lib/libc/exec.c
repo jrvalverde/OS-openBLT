@@ -31,17 +31,20 @@
 #include <errno.h>
 #include <elf.h>
 #include <sys/stat.h>
+#include <blt/syscall.h>
 #include <blt/libsyms.h>
 
 weak_alias (_execve, execve)
 
 int _execve (const char *path, char * const *argv, char * const *envp)
 {
-	char *ptr;
-	int fd, area, res, size;
+	char *ptr, *c;
+	char **n_argv;
+	int i, j, fd, area, sarea, res, size, total;
 	unsigned int *magic;
 	struct stat buf;
-
+	uint32 *stack, *top;
+	
 	res = _stat (path, &buf);
 	if (res)
 	{
@@ -62,9 +65,42 @@ int _execve (const char *path, char * const *argv, char * const *envp)
 	if (*magic != ELF_MAGIC)
 	{
 		errno = ENOEXEC;
+		area_destroy (area);
 		return -1;
 	}
-	thr_spawn (area, 0x1000, argv, envp);
-	return -1;
+	// _close(fd);
+
+	/* compute how much stack we need for arguments */
+	for (i = total = 0; argv[i] != NULL; i++)
+		total += strlen (argv[i]) + 1;
+	total = (total & ~3) ? (total & ~3) + 4 : total;
+
+	/* create stack */
+	sarea = area_create (0x1000, 0, (void **) &stack, 0);
+
+	/* copy arguments and set up the argv array */
+	c = (char *) stack + 0xffc - total;
+	n_argv = (char **) (c - i * sizeof (char *));
+	for (j = 0; j < i; j++)
+	{
+		strcpy (c, argv[j]);
+		n_argv[j] = (char *) (0x3ff000 + ((unsigned int) c & 0xfff));
+		c += strlen (argv[j]) + 1;
+	}
+
+	/* drop argc and argv on the top */
+	top = (uint32 *) ((unsigned int) stack + 0x1000 - (total + (i + 3) *
+		sizeof (char *)));
+	top[0] = i;
+	top[1] = 0x3ff000 + (((uint32) top + 8) & 0xfff);
+
+	/* off we go */
+	res = thr_spawn (0x1074, 0x3ff000 + ((unsigned int) top & 0xfff) + 0x10,
+		area, 0x1000, sarea, 0x3ff000, argv[0]);
+
+	/* clean up */
+	area_destroy (area);
+	area_destroy (sarea);
+	return res;
 }
 

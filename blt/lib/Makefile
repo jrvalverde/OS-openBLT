@@ -2,7 +2,7 @@
 
 include ../make.conf
 
-CFLAGS = $(CF) -I../include
+CFLAGS = $(CF) -I../include -Wall
 
 all: obj crt0.o libc libblt libconsole libdl
 

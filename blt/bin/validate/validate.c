@@ -49,6 +49,9 @@ int main (int argc, char **argv)
 	int s,c;
 	__libc_init_console ();
 
+	printf("xxx %x %x / %x\n",argc,(uint32)argv,(uint32)&argc);
+	os_debug();
+	
 #if 0
 	send_port = port_create(0);
 	os_thread(sender);

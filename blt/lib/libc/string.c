@@ -54,13 +54,13 @@ int strncmp(const char *s1, const char *s2, size_t n)
 
 char *strchr (const char *cs, int c)
 {
-	char *s;
+	const char *s;
 
 	s = cs;
 	while (*s)
 		{
 			if (*s == c)
-				return s;
+				return (char *) s;
 			s++;
 		}
 	return NULL;

@@ -47,10 +47,8 @@ void init_idt(char *idt);
 
 void _context_switch(uint32 *old_stack, uint32 new_stack, uint32 pdbr);
  
-unsigned char IP[4];
-
-aspace_t *flat;
-boot_dir *bdir;
+aspace_t *flat = NULL;
+boot_dir *bdir = NULL;
 
 char *idt;
 char *gdt;
@@ -69,50 +67,8 @@ resource_t *run_queue, *timer_queue, *reaper_queue;
 uint32 memsize; /* pages */
 uint32 memtotal;
 
-static uint32 nextentry = 9*8;
-static uint32 nextmem = 0x80400000 - 3*4096;
 static int uberportnum = 0, uberareanum = 0;
 
-uint32 getgdtentry(void)
-{
-    nextentry += 8;    
-    return nextentry;
-}
-
-/* return phys page number of first page of allocated group */
-uint32 getpages(int count)
-{
-    memsize -= count;
-    Assert(memsize > 512);
-    
-    return memsize;
-}
-
-/* alloc count physical pages, map them into kernel space, return virtaddr AND phys */
-void *kgetpages2(int count, int flags, uint32 *phys)
-{
-    nextmem -= 4096*count;
-    *phys = getpages(count);
-    aspace_maphi(flat, *phys, nextmem/0x1000, count, flags);
-    *phys *= 4096;
-    return (void *) nextmem;
-}
-
-/* alloc count physical pages, map them into kernel space, return virtaddr */
-void *kgetpages(int count, int flags)
-{
-    nextmem -= 4096*count;
-    aspace_maphi(flat, getpages(count), nextmem/0x1000, count, flags); 
-    return (void *) nextmem;
-}
-
-/* map specific physical pages into kernel space, return virtaddr */
-void *kmappages(int phys, int count, int flags)
-{
-    nextmem -= 4096*count;
-    aspace_maphi(flat, phys, nextmem/0x1000, count, flags); 
-    return (void *) nextmem;
-}
 
 void destroy_kspace(void)
 {
@@ -142,11 +98,11 @@ void idler(void)
 static aspace_t _flat;
 static TSS *ktss;
 
-void init_kspace(void)
+void init_kspace(int membottom)
 {
 	uint32 *raw;
 	
-    /* there's an existing aspace at 0xB03FD000 that was initialized
+    /* there's an existing aspace at vaddr 0x803FD000 that was initialized
        by the 2nd stage loader */
 	raw = (uint32 *) 0x803FD000;
     flat = &_flat;
@@ -157,14 +113,16 @@ void init_kspace(void)
 	
     memsize -= 3; /* three pages already in use */
     
-    toppage = (char *) kgetpages(3,3);
-    gdt = (char *) kgetpages(1,3);
-    rsrc_init(kgetpages(6,3),4096*6);
-    memory_init();
+    memory_init(membottom, memsize);
+
+	
+    toppage = (char *) kgetpages(3); /* kernel startup stack */
+    gdt = (char *) kgetpages(1);
+    rsrc_init(kgetpages(6),4096*6);
     
 
 	kernel = (task_t *) kmalloc(task_t);
-	ktss = (TSS *) kgetpages(1,3);
+	ktss = (TSS *) kgetpages(1);
     kernel->flags = tKERNEL;
 	kernel->rsrc.id = 0;
 	kernel->rsrc.owner = NULL;
@@ -174,7 +132,7 @@ void init_kspace(void)
 	kernel->rsrc.queue_tail = NULL;
     current = kernel;
 
-    init_idt(idt = kgetpages(1,3));      /* init the new idt, save the old */
+    init_idt(idt = kgetpages(1));              /* init the new idt, save the old */
     gdt2 = (void *) i386sgdt(&gdt2len);        /* save the old gdt */
 
     i386SetSegment(gdt + SEL_KCODE,      /* #01 - 32bit DPL0 CODE */
@@ -333,8 +291,9 @@ void go_kernel(void)
     port_t *uberport;
 	area_t *uberarea;
 
-	for (i = 0, len = 1; (bdir->bd_entry[i].be_type != BE_TYPE_NONE); i++)
+	for (i = 0, len = 1; (bdir->bd_entry[i].be_type != BE_TYPE_NONE); i++){
 		len += bdir->bd_entry[i].be_size;
+	}
 	len *= 0x1000;
 
     uberport = rsrc_find_port(uberportnum = port_create(0));
@@ -353,10 +312,10 @@ void go_kernel(void)
         t = new_thread(a, 0x1074 /*bdir->bd_entry[i].be_code_ventr*/, 0);
         current = t;
 
-        src = (void *) (bdir->bd_entry[i].be_offset*0x1000 + 0x100000);
-        ptr = kgetpages2 (bdir->bd_entry[i].be_size, 3, (uint32 *) &phys);
-        for (j = 0; j < bdir->bd_entry[i].be_size * 0x1000; j++)
-            *((char *) ptr + j) = *((char *) src + j);
+        phys = (void *) (bdir->bd_entry[i].be_offset*0x1000 + 0x100000);
+//        ptr = kgetpages2 (bdir->bd_entry[i].be_size, 3, (uint32 *) &phys);
+//        for (j = 0; j < bdir->bd_entry[i].be_size * 0x1000; j++)
+//            *((char *) ptr + j) = *((char *) src + j);
         t->text_area = area_create(a,bdir->bd_entry[i].be_size*0x1000,
             0x1000, &phys, 0x1010);
         a->heap_id = area_create(a,0x2000,0x1000 + bdir->bd_entry[i].be_size*
@@ -429,13 +388,16 @@ const static char *copyright2 =
  
 void kmain(void)
 {
-    int n;
-    memsize = (kinfo->memsize) / 4096;
+    int n,len;
+    memsize = ((kinfo->memsize) / 4096) & ~0xff;
     entry_ebp = kinfo->entry_ebp;
     bdir = kinfo->bd;
+	
+	for (n = 0, len = 1; (bdir->bd_entry[n].be_type != BE_TYPE_NONE); n++)
+		len += bdir->bd_entry[n].be_size;
 
     init_timer();
-    init_kspace();
+    init_kspace(256 + len + 16); /* bottom of kernel memory */
     
     kprintf_init();
 #ifdef DPRINTF

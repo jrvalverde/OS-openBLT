@@ -39,11 +39,6 @@
 #include <blt/types.h>
 #include <blt/error.h>
 
-uint32 getgdtentry(void);
-void *kgetpages(int count, int flags);
-void *kgetpages2(int count, int flags, uint32 *phys);
-uint32 getpages(int count);
-
 void panic(char *reason);
 
 extern int kernel_timer;

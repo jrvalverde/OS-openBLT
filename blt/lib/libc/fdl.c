@@ -76,7 +76,7 @@ int _fdl_alloc_descriptor (fdl_type *handler, void *cookie)
 	return -1;
 }
 
-int _fdl_free_descriptor (int desc)
+void _fdl_free_descriptor (int desc)
 {
 	fd_table[desc] = NULL;
 }

@@ -28,8 +28,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <blt/fdl.h>
 #include <blt/syscall.h>
+#include <blt/namer.h>
 #include <blt/libsyms.h>
 
 static int input_remote_port, input_local_port;
@@ -79,7 +81,6 @@ int _console_read (void *cookie, void *buf, size_t count)
 int _getc (FILE *stream)
 {
 	char c;
-	msg_hdr_t msg;
 
 	_read (stream->fd, &c, 1);
 	return c;
