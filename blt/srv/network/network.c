@@ -227,7 +227,7 @@ int network_main (volatile int *ready)
 		mh.dst = ctl_port;
 		mh.data = buffer;
 		mh.size = len;
-		port_recv (&mh);
+		old_port_recv (&mh);
 
 		if (mh.dst == tell_port)
 		{
@@ -236,7 +236,7 @@ int network_main (volatile int *ready)
 			mh.src = tell_port;
 			mh.data = &tell_port;
 			mh.size = 1;
-			port_send (&mh);
+			old_port_send (&mh);
 		}
 		else if (mh.dst == ctl_port)
 		{

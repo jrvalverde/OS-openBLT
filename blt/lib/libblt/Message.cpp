@@ -248,7 +248,7 @@ Message::Reply(const Message *msg) const
 		mh.dst = _reply_port;
 		mh.size = msg->_length;
 		mh.data = msg->_data;
-		res = port_send(&mh);
+		res = old_port_send(&mh);
 		port_destroy(mh.src);
 		if(res == msg->_length) {
 			return 0;

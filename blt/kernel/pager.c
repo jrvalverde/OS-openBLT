@@ -78,8 +78,13 @@ void page_fault (uint32 number, regs r, uint32 error, uint32 eip, uint32 cs,
 	swtch ();
 
 	/* paging is done; check result */
-	if (current->status == ERR_SEGV)
-	{
+	if (current->status == ERR_SEGV) {
+		if((cs & 0xFFF8) == SEL_UCODE) {
+			user_debug(&r, &eip, &eflags);
+		} else {
+			kprintf("pf: cs = %x\n",cs& 0xfff8);
+		}
+		
 		current->flags = tDEAD;
 		k_debugger (&r, eip, cs, eflags);
 		terminate ();

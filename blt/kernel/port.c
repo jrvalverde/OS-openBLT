@@ -101,20 +101,13 @@ uint32 port_option(uint32 port, uint32 opt, uint32 arg)
 static chain_t *msg_pool = NULL;
 
 
-/*int port_send(int from, int port, void *msg, int size)*/
-int port_send(msg_hdr_t *mh)
+int port_send(int src, int dst, void *msg, size_t size, uint32 code)
 {
-    int i,size;
+    int i;
     message_t *m;
-    void *msg;
     port_t *f,*p;
-
-    if((current->team != kernel_team) && (((uint32) mh) > 0x400000))
-		return ERR_MEMORY;
-    size = mh->size;    
-    msg = mh->data;
     
-    if(!(f = rsrc_find_port(mh->src))) return ERR_SENDPORT;
+    if(!(f = rsrc_find_port(src))) return ERR_SENDPORT;
 #if 0
  	if(f->rsrc.owner != current) {
         task_t *t = current->rsrc.owner; /* XXX */
@@ -127,16 +120,16 @@ int port_send(msg_hdr_t *mh)
     }
 #endif
         /* insure the port exists and we may send to it */
-    if(!(p = rsrc_find_port(mh->dst))) return ERR_RECVPORT;
+    if(!(p = rsrc_find_port(dst))) return ERR_RECVPORT;
 /*    if((p->restrict) &&
-       (p->restrict != mh->src)) return ERR_PERMISSION; XXX */
+       (p->restrict != src)) return ERR_PERMISSION; XXX */
 
         /* are we slaved to a different port? */
     if(p->slaved){
         if(!(p = rsrc_find_port(p->slaved))) return ERR_RESOURCE;
         if(p->slaved) return ERR_RESOURCE;
 /*        if((p->restrict) &&
-           (p->restrict != mh->src)) return ERR_PERMISSION;  XXX */      
+           (p->restrict != src)) return ERR_PERMISSION;  XXX */      
     }
 
 	while(p->msgcount >= MAX_MSGCOUNT){
@@ -146,15 +139,14 @@ int port_send(msg_hdr_t *mh)
 	}
 
         /* ignore invalid sizes/locations */
-    if( (size < 1) ||
-        (((uint32) msg) > 0x400000) ||
+    if( (((uint32) msg) > 0x400000) ||
         (size > 4096)) return ERR_MEMORY;    
 
     m = kmalloc(message_t);
     
         /* allocate a 4k page to carry the message. klunky... */
     if(size < 256){
-        m->data = kmallocB(size);        
+        m->data = size ? kmallocB(size) : NULL;        
     } else {
         if(msg_pool){
             m->data = (void *) msg_pool;
@@ -168,8 +160,9 @@ int port_send(msg_hdr_t *mh)
         ((unsigned char *) m->data)[i] = *((unsigned char *) msg++);
 	}
 	
-    m->from_port = mh->src;
-    m->to_port = mh->dst;    
+    m->from_port = src;
+    m->to_port = dst;    
+	m->code = code;
     m->size = size;
     m->next = NULL;
     if(p->last){
@@ -197,21 +190,15 @@ int port_send(msg_hdr_t *mh)
     return size;
 }
 
-/*int port_recv(int port, void *msg, int size, int *from)*/
-int port_recv(msg_hdr_t *mh)
+/*int old_port_recv(int port, void *msg, int size, int *from)*/
+int port_recv(int dst, int *src, void *msg, size_t size, uint32 *code)
 {
-    int i,size;
+    int i;
     message_t *m;
-    void *msg;    
     port_t *p;
 
-    if((current->team != kernel_team) && (((uint32) mh) > 0x400000))
-		return ERR_MEMORY;
-    size = mh->size;    
-    msg = mh->data;
-
         /* insure the port exists and we may receive on it */
-    if(!(p = rsrc_find_port(mh->dst))) return ERR_RECVPORT;
+    if(!(p = rsrc_find_port(dst))) return ERR_RECVPORT;
 #if 0
 	    if(p->rsrc.owner != current) return ERR_PERMISSION;
 #endif
@@ -231,8 +218,9 @@ int port_recv(msg_hdr_t *mh)
     for(i=0;i<m->size && (i <size);i++){
         *((unsigned char *) msg++) = ((unsigned char *) m->data)[i];
     }
-    mh->src = m->from_port;    
-    mh->dst = m->to_port;
+    if(src) *src = m->from_port;    
+	if(code) *code = m->code;
+    dst = m->to_port; // XXX
     
         /* unchain from the head of the queue */
     if(!(p->first = p->first->next)) p->last = NULL;    
@@ -245,7 +233,7 @@ int port_recv(msg_hdr_t *mh)
 
         /* add to the freepool */
     if(m->size < 256){
-        kfreeB(m->size,m->data);
+        if(m->size) kfreeB(m->size,m->data);
     } else {
         ((chain_t *) m->data)->next = msg_pool;
         msg_pool = ((chain_t *) m->data);

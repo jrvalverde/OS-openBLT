@@ -10,7 +10,10 @@
 #include <blt/namer.h>
 #include <blt/libsyms.h>
 
-static int input_remote_port, input_local_port;
+int __libc_bind_console(void);
+ssize_t __libc_write_console(const void *buf, ssize_t len);
+ssize_t __libc_read_console(void *buf, ssize_t);
+
 static fdl_type console_input_fdl_imp = { "console_input", _console_read,
     NULL, NULL, NULL };
 
@@ -23,8 +26,8 @@ void __libc_init_console_input ()
 {
 	int fd;
 
-	input_remote_port = namer_find ("console_input", 0);
-	input_local_port = port_create (input_remote_port, "input_remote_port");
+	__libc_bind_console();
+	
 	fd = _fdl_alloc_descriptor (&console_input_fdl_imp, NULL);
 	if (fd)
 		_printf ("__libc_init_input: console input not on fd 0\n");
@@ -34,22 +37,7 @@ void __libc_init_console_input ()
 
 int _console_read (void *cookie, void *buf, size_t count)
 {
-	char data;
-	msg_hdr_t msg;
-
-	data = count;
-	msg.src = input_local_port;
-	msg.dst = input_remote_port;
-	msg.data = &data;
-	msg.size = 1;
-	port_send (&msg);
-
-	msg.src = input_remote_port;
-	msg.dst = input_local_port;
-	msg.data = buf;
-	msg.size = count;
-	port_recv (&msg);
-	return msg.size;
+	return __libc_read_console(buf, count);
 }
 
 int _getc (FILE *stream)

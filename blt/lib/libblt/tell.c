@@ -35,13 +35,13 @@ void __tell_impl (void)
 		mh.dst = port;
 		mh.data = buf;
 		mh.size = len;
-		port_recv (&mh);
+		old_port_recv (&mh);
 		(*callback) (buf);
 		mh.dst = mh.src;
 		mh.src = port;
 		mh.data = &junk;
 		mh.size = 1;
-		port_send (&mh);
+		old_port_send (&mh);
 	}
 }
 

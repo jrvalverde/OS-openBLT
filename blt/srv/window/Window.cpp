@@ -267,7 +267,7 @@ void Window::PostEvent(Event *event)
 	header.dst = fEventPort;
 	header.data = event;
 	header.size = sizeof(Event);
-	port_send(&header);
+	old_port_send(&header);
 }
 
 Rect Window::LocalToScreen(const Rect &inRect) const

@@ -63,13 +63,13 @@ static void __vfs_openconn (int src_port, int filename_area)
 	mh.dst = vfs_public_port;
 	mh.data = &vc;
 	mh.size = sizeof (vc);
-	port_send (&mh);
+	old_port_send (&mh);
 
 	mh.src = 0; /* XXX */
 	mh.dst = vfs_local_port;
 	mh.data = &vr;
 	mh.size = sizeof (vr);
-	port_recv (&mh);
+	old_port_recv (&mh);
 
 	if (vr.status != VFS_OK)
 	{
@@ -100,13 +100,13 @@ DIR *_opendir (const char *name)
 	msg.dst = vfs_remote_port;
 	msg.data = &vc;
 	msg.size = sizeof (vfs_cmd_t);
-	port_send (&msg);
+	old_port_send (&msg);
 
 	msg.src = vfs_remote_port;
 	msg.dst = vfs_local_port;
 	msg.data = &vr;
 	msg.size = sizeof (vfs_res_t);
-	port_recv (&msg);
+	old_port_recv (&msg);
 
 	if (vr.status != VFS_OK)
 	{
@@ -150,13 +150,13 @@ int _closedir (DIR *dirp)
 	msg.dst = vfs_remote_port;
 	msg.data = &vc;
 	msg.size = sizeof (vfs_cmd_t);
-	port_send (&msg);
+	old_port_send (&msg);
 
 	msg.src = vfs_remote_port;
 	msg.dst = vfs_local_port;
 	msg.data = &vr;
 	msg.size = sizeof (vfs_res_t);
-	port_recv (&msg);
+	old_port_recv (&msg);
 
 	errno = vr.errno;
 	return (vr.status == VFS_OK) ? 0 : 1;
@@ -183,13 +183,13 @@ int _open (const char *path, int flags, mode_t mode)
 	msg.dst = vfs_remote_port;
 	msg.data = &vc;
 	msg.size = sizeof (vfs_cmd_t);
-	port_send (&msg);
+	old_port_send (&msg);
 
 	msg.src = vfs_remote_port;
 	msg.dst = vfs_local_port;
 	msg.data = &vr;
 	msg.size = sizeof (vfs_res_t);
-	port_recv (&msg);
+	old_port_recv (&msg);
 
 	if (vr.status != VFS_OK)
 	{
@@ -221,13 +221,13 @@ int _vfs_close (void *cookie)
 	mh.dst = vfs_remote_port;
 	mh.data = &vc;
 	mh.size = sizeof (vfs_cmd_t);
-	port_send (&mh);
+	old_port_send (&mh);
 
 	mh.src = vfs_remote_port;
 	mh.dst = vfs_local_port;
 	mh.data = &vr;
 	mh.size = sizeof (vfs_res_t);
-	port_recv (&mh);
+	old_port_recv (&mh);
 
 	if (vr.status != VFS_OK)
 	{
@@ -253,13 +253,13 @@ ssize_t _vfs_read (void *cookie, void *buf, size_t count)
 	mh.dst = vfs_remote_port;
 	mh.data = &vc;
 	mh.size = sizeof (vfs_cmd_t);
-	port_send (&mh);
+	old_port_send (&mh);
 
 	mh.src = 0;
 	mh.dst = vfs_local_port;
 	mh.data = &vr;
 	mh.size = sizeof (vfs_res_t);
-	port_recv (&mh);
+	old_port_recv (&mh);
 	len = vr.data[0];
 	if (!len)
 		return errno = 0;
@@ -268,7 +268,7 @@ ssize_t _vfs_read (void *cookie, void *buf, size_t count)
 	{
 		mh.data = buf;
 		mh.size = count;
-		port_recv (&mh);
+		old_port_recv (&mh);
 		errno = vr.errno;
 		return len;
 	}
@@ -278,11 +278,11 @@ ssize_t _vfs_read (void *cookie, void *buf, size_t count)
 		{
 			mh.data = (char *) buf + i;
 			mh.size = 0x1000;
-			port_recv (&mh);
+			old_port_recv (&mh);
 		}
 		mh.data = (char *) buf + i;
 		mh.size = len;
-		port_recv (&mh);
+		old_port_recv (&mh);
 		errno = vr.errno;
 		return i + len;
 	}
@@ -301,13 +301,13 @@ int _stat (const char *filename, struct stat *buf)
 	msg.dst = vfs_remote_port;
 	msg.data = &vc;
 	msg.size = sizeof (vfs_cmd_t);
-	port_send (&msg);
+	old_port_send (&msg);
 
 	vr = malloc (sizeof (vfs_res_t) + sizeof (struct stat));
 	msg.dst = vfs_local_port;
 	msg.data = vr;
 	msg.size = sizeof (vfs_res_t) + sizeof (struct stat);
-	port_recv (&msg);
+	old_port_recv (&msg);
 
 	if (vr->status == VFS_OK)
 	{
@@ -335,13 +335,13 @@ int _mkdir (const char *path, mode_t mode)
 	mh.dst = vfs_remote_port;
 	mh.data = &vc;
 	mh.size = sizeof (vfs_cmd_t);
-	port_send (&mh);
+	old_port_send (&mh);
 
 	mh.src = vfs_remote_port;
 	mh.dst = vfs_local_port;
 	mh.data = &vr;
 	mh.size = sizeof (vfs_res_t);
-	port_recv (&mh);
+	old_port_recv (&mh);
 
 	if (vr.status != VFS_OK)
 	{

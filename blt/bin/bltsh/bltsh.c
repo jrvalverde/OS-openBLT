@@ -34,6 +34,7 @@
 #include <sys/stat.h>
 #include <blt/syscall.h>
 
+void grab_console(void);
 char **params;
 void __libc_init_console_input (void);
 
@@ -47,6 +48,7 @@ void do_command(int argc, char **argv)
 	if(!stat(argv[0],&s)){
 		if((thid = execve(argv[0],argv,NULL)) > 0){
 			thr_wait(thid);
+			grab_console();
 		} else {
 			printf("bltsh: failed to execve(): %s\n", argv[0]);
 		}	
@@ -62,6 +64,7 @@ void do_command(int argc, char **argv)
 		if(!stat(x,&s)){
 			if((thid = execve(argv[0],argv,NULL)) > 0){
 				thr_wait(thid);
+				grab_console();
 			} else {
 				printf("bltsh: failed to execve(): %s\n", argv[0]);
 			}

@@ -38,11 +38,6 @@ struct virtscreen
   void (*next_char_send)(struct virtscreen *cur, unsigned char ch);
 
   int lock;
-
-  char input[32];
-  int input_len;
-  qsem_t *input_lock;
-  qsem_t *len_lock;
 };
 
 

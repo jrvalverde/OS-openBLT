@@ -152,8 +152,13 @@ void init_timer(void)
 {
     outb(0x24,PIT_CONTROL[0]);
         /* write to counter 0, binary, high byte, mode 2 */
+#if 0
     outb(0x2f,PIT_COUNTER[0][0]);
         /*0x2f00=12032 * .8380965us ~= 10.083ms*/
+#else
+    outb(0x0e,PIT_COUNTER[0][0]);
+        /*0x0e00=3584 * .8380965us ~= 3.004ms*/
+#endif
 }
 
 void cli (void)

@@ -21,7 +21,7 @@ void sender(void)
 		mh.flags = 0;
 		mh.data = buffer;
 		
-		port_send(&mh);
+		old_port_send(&mh);
 	}
 }
 
@@ -40,7 +40,7 @@ void receiver(void)
 		mh.flags = 0;
 		mh.data = buffer;
 		
-		port_recv(&mh);
+		old_port_recv(&mh);
 	}
 }
 
@@ -63,23 +63,23 @@ int port_test(void)
 	return 0;
 }
 
-int sem_id;
+int semid;
 
 void tt_thread(void *data)
 {
-	sem_release(sem_id);
+	sem_release(semid);
 	os_terminate(0);
 }
 
 int thread_test(void)
 {
 	int n;
-	sem_id = sem_create(0, "thread_test_step");
+	semid = sem_create(0, "thread_test_step");
 	
 	for(n=0;n<100000;n++){
 		if(!(n % 1000)) printf("thread_test: %dth thread\n",n);
 		thr_create(tt_thread, NULL, "thread test");
-		sem_acquire(sem_id);
+		sem_acquire(semid);
 	}
 	
 }

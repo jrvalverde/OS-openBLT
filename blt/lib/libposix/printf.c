@@ -8,14 +8,15 @@
 #include <blt/syscall.h>
 #include <blt/libsyms.h>
 
-static int __libc_console_public_port, __libc_console_port;
-
 void va_snprintf (char *s, int len, const char *fmt, ...);
+
+void __libc_bind_console(void);
+ssize_t __libc_write_console(const void *buf, ssize_t len);
+ssize_t __libc_read_console(void *buf, ssize_t);
 
 void __libc_init_console (void)
 {
-	__libc_console_public_port = namer_find ("console",1);
-	__libc_console_port = port_create (__libc_console_public_port,"console_public_port");
+	__libc_bind_console ();
 }
 
 weak_alias (_printf, __libc_printf)
@@ -29,19 +30,15 @@ init_info __init_posix_console = {
 
 int _printf(char *fmt,...)
 {   
-	msg_hdr_t kmsg;
-	int l;
 	char buf[256];
 
 	va_list pvar;
 	va_start(pvar,fmt);
 	va_snprintf(buf,256,fmt,pvar);
 	va_end(pvar);
-	kmsg.size = strlen(buf);
-	kmsg.data = buf;
-	kmsg.src = __libc_console_port;
-	kmsg.dst = __libc_console_public_port;
-	l = port_send(&kmsg);
-	return -1; /* FIXME */
+	
+	__libc_write_console(buf, strlen(buf));
+	
+	return 0;
 }
 

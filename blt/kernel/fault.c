@@ -40,30 +40,19 @@ static char *etable[] = {
     "Machine Check"
 };
 
-typedef void (*ehfcn)(uint32, regs, uint32, uint32, uint32);
-typedef void (*ehfcnE)(uint32, regs, uint32, uint32, uint32, uint32);
+typedef void (*ehfunc)();
 
-void fault(uint32 number, regs r, uint32 eip, uint32 cs,
-		uint32 eflags);
-void faultE(uint32 number, regs r, uint32 error, uint32 eip, uint32 cs,
-		uint32 eflags);
 static void __fault(uint32 number, regs r, uint32 eip, uint32 cs,
 		uint32 eflags);
 static void __faultE(uint32 number, regs r, uint32 error, uint32 eip, uint32 cs,
 		uint32 eflags);
 
-static ehfcn ehtable[] =
+ehfunc ehfunctab[] = 
 	{ __fault, __fault, __fault, __fault,
 	  __fault, __fault, __fault, __fault,
-	  NULL, __fault, NULL, NULL,
-	  NULL, NULL, NULL, __fault,
+	  __faultE, __fault, __faultE, __faultE,
+	  __faultE, __faultE, __faultE /*page_fault*/, __fault,
 	  __fault, __fault, __fault };
-static ehfcnE ehtableE[] =
-	{ NULL, NULL, NULL, NULL,
-	  NULL, NULL, NULL, NULL,
-	  __faultE, NULL, __faultE, __faultE,
-	  __faultE, __faultE, page_fault, NULL,
-	  NULL, NULL, NULL };
 
 extern unsigned char *screen;
 
@@ -82,16 +71,31 @@ void print_regs(regs *r, uint32 eip, uint32 cs, uint32 eflags)
             eflags, cs, eip);   
 }
 
-void faultE(uint32 number, regs r, uint32 error, uint32 eip, uint32 cs,
-		uint32 eflags)
+void user_debug(regs *r, uint32 *eip, uint32 *eflags)
 {
-	(*ehtableE[number]) (number, r, error, eip, cs, eflags);
+#if 1
+	return;
+#else
+	int src,p,sz;
+	task_t *t0;
+	uchar buf[16];
+	uint32 code;
+	
+	p = port_create(0, "debug control");
+		
+	/* wake all blocking objects */
+	while((t0 = list_detach_head(&current->rsrc.queue))) task_wake(t0,ERR_RESOURCE);
+		
+	kprintf("Waiting on debug control port (%d)... ",p);
+	current->team = kernel_team; // XXX hack 
+	 
+	while((sz = port_recv(p, &src, buf, 16, &code)) >= 0){
+	}
+	kprintf("debug control error %d\n",sz);
+	
+#endif
 }
 
-void fault(uint32 number, regs r, uint32 eip, uint32 cs, uint32 eflags)
-{
-	(*ehtable[number]) (number, r, eip, cs, eflags);
-}
 
 static void __faultE(uint32 number,
             regs r, uint32 error,
@@ -113,6 +117,8 @@ static void __faultE(uint32 number,
     kprintf("");
     kprintf("Task %d (%s) crashed.",current->rsrc.id,current->rsrc.name);
 
+	if((cs & 0xFFF8) == SEL_UCODE) user_debug(&r, &eip, &eflags);
+	
 #ifdef DEBUG_ON_FAULT
     current->flags = tDEAD;
     k_debugger(&r, eip, cs, eflags);
@@ -136,6 +142,8 @@ static void __fault(uint32 number,
 
     kprintf("");
     kprintf("Task %d (%s) crashed.",current->rsrc.id,current->rsrc.name);
+	
+	if((cs & 0xFFF8) == SEL_UCODE) user_debug(&r, &eip, &eflags);
 	
 #ifdef DEBUG_ON_FAULT
     if(number != 2){

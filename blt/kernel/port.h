@@ -13,14 +13,6 @@
 #define PORT_OPT_SETDEFAULT    3
 #define PORT_OPT_SLAVE         4
 
-typedef struct __msg_hdr_t {
-    int flags;
-    int src;
-    int dst;
-    int size;
-    void *data;    
-} msg_hdr_t;
-
 typedef struct __chain_t 
 {
     struct __chain_t *next;
@@ -29,6 +21,7 @@ typedef struct __chain_t
 typedef struct __message_t {
     struct __message_t *next;
     uint32 size;
+	uint32 code;
     int from_port;
     int to_port;    
     void  *data;    
@@ -48,11 +41,10 @@ struct __port_t
 	resource_t *sendqueue;
 };
 
-
 int port_create(int restrict, const char *name);
 int port_destroy(int port);
 uint32 port_option(uint32 port, uint32 opt, uint32 arg);
-int port_send(msg_hdr_t *mh);
-int port_recv(msg_hdr_t *mh);
+ssize_t port_send(int src, int dst, void *data, size_t len, uint32 code);
+ssize_t port_recv(int dst, int *src, void *data, size_t max, uint32 *code);
 
 #endif

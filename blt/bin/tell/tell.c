@@ -41,10 +41,10 @@ int main (int argc, char **argv)
 	mh.dst = rem_port;
 	mh.data = text;
 	mh.size = strlen (text) + 1;
-	port_send (&mh);
+	old_port_send (&mh);
 	mh.src = rem_port;
 	mh.dst = loc_port;
-	port_recv (&mh);
+	old_port_recv (&mh);
 	return 0;
 }
 

@@ -77,7 +77,7 @@ void Window::WaitEvent(Event *event)
  	header.dst = fEventPort;
  	header.data = event;
  	header.size = sizeof(Event);
- 	port_recv(&header);
+ 	old_port_recv(&header);
 }
 
 void Window::AddChild(Canvas *child, long left, long top, long right, long bottom)
@@ -192,7 +192,7 @@ void Window::Quit()
 	header.dst = fEventPort;
 	header.data = &event;
 	header.size = sizeof(Event);
-	port_send(&header);
+	old_port_send(&header);
 }
 
 

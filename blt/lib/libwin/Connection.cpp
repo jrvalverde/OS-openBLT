@@ -83,7 +83,7 @@ void Connection::Flush()
 	header.data = fSendBuffer;
 	header.size = fSendBufferSize;
 
-	port_send(&header);
+	old_port_send(&header);
 	
 	fSendBufferSize = 0;
 }
@@ -96,7 +96,7 @@ void Connection::Receive()
 	header.data = fReceiveBuffer;
 	header.size = kReceiveBufferSize;
 
-	fReceiveBufferSize = port_recv(&header);
+	fReceiveBufferSize = old_port_recv(&header);
 	fReceiveBufferPos = 0;
 }
 

@@ -506,14 +506,14 @@ void vfs_tell (void)
 		mh.dst = port;
 		mh.data = buf;
 		mh.size = sizeof (buf);
-		port_recv (&mh);
+		old_port_recv (&mh);
 		vfs_tell_parse (mh.data);
 
 		mh.dst = mh.src;
 		mh.src = port;
 		mh.data = &port;
 		mh.size = 1;
-		port_send (&mh);
+		old_port_send (&mh);
 	}
 }
 
@@ -564,7 +564,7 @@ int vfs_main (volatile int *ready)
 		msg.dst = vfs_port;
 		msg.data = &vc;
 		msg.size = sizeof (vc);
-		port_recv (&msg);
+		old_port_recv (&msg);
 
 		if (vc.cmd != VFS_OPENCONN)
 			client = hashtable_lookup (conn_table, msg.src, NULL);
@@ -626,7 +626,7 @@ int vfs_main (volatile int *ready)
 			reply.dst = msg.src;
 			reply.data = res;
 			reply.size = size;
-			port_send (&reply);
+			old_port_send (&reply);
 			free (res);
 
 			if (data != NULL)
@@ -637,7 +637,7 @@ int vfs_main (volatile int *ready)
 				{
 					reply.data = data;
 					reply.size = len;
-					port_send (&reply);
+					old_port_send (&reply);
 				}
 				else
 				{
@@ -645,11 +645,11 @@ int vfs_main (volatile int *ready)
 					{
 						reply.data = (char *) data + i;
 						reply.size = 0x1000;
-						port_send (&reply);
+						old_port_send (&reply);
 					}
 					reply.data = (char *) data + i;
 					reply.size = len;
-					port_send (&reply);
+					old_port_send (&reply);
 				}
 				free (data);
 			}
