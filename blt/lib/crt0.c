@@ -35,7 +35,7 @@
 #include <blt/os.h>
 
 int main(int argc, char **argv);
-void _init(void);
+static void _init(void);
 
 char *__progname;
 
