@@ -1,30 +1,7 @@
-/* $Id$
-**
-** Copyright 1998 Brian J. Swetland
-** All rights reserved.
-**
-** Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions
-** are met:
-** 1. Redistributions of source code must retain the above copyright
-**    notice, this list of conditions, and the following disclaimer.
-** 2. Redistributions in binary form must reproduce the above copyright
-**    notice, this list of conditions, and the following disclaimer in the
-**    documentation and/or other materials provided with the distribution.
-** 3. The name of the author may not be used to endorse or promote products
-**    derived from this software without specific prior written permission.
-**
-** THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-** IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-** OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-** IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-** INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-** NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* Copyright 1999, Brian J. Swetland.  All Rights Reserved.
+** This file is provided under the terms of the OpenBLT License
 */
+
 #include "string.h"
 
 #include <blt/namer.h>
@@ -38,6 +15,8 @@
 
 #include "ne2k.h"
 
+int find_pci(uint16 vendor, uint16 device, int *iobase, int *irq);
+
 /* hard code these for now */
 #define NIC_IRQ		5
 #define NIC_ADDR	0x300
@@ -46,6 +25,7 @@ static unsigned char *loadip = (unsigned char *) 0x1020;
 
 static snic TheSNIC;
 int snic_irq = NIC_IRQ;
+int snic_addr = NIC_ADDR;
 
 
 static unsigned char prom[32];
@@ -511,14 +491,12 @@ void send_udp(int port, unsigned char *ip, void *data, int size)
 void
 control(void)
 {
-    int nh;
     msg_hdr_t msg;
     char cbuf[1500];
     net_cmd *cmd = (net_cmd *) cbuf;
     int size;
     
-    nh = namer_newhandle();
-    namer_register(nh, port_net = port_create(0,"net_listen_port"),"net");
+    namer_register(port_net = port_create(0,"net_listen_port"),"net");
 
 if (port_net)
 trace(1, "control: sem port_net");
@@ -664,7 +642,6 @@ int atoi(char *x)
 int main(int argc, char **argv)
 {
     int i;
-    int nh;    
 
     __libc_init_console();
 
@@ -678,6 +655,10 @@ int main(int argc, char **argv)
 		}
 	}
 		
+	if(find_pci(0x10ec, 0x8029, &snic_addr, &snic_irq)){
+		printf("ne2000: found PCI device\n");
+	}
+	
     os_brk(RINGSIZE*PACKETSIZE*2);
 
     sem_ring = qsem_create(1);
@@ -687,16 +668,14 @@ int main(int argc, char **argv)
     port_isr = port_create(0,"net_send_port");
     port_set_restrict(port_isr, port_isr);
 
-    nh = namer_newhandle();    
-    namer_register(nh, port_isr,"net_xmit");
-    namer_delhandle(nh);
+    namer_register(port_isr,"net_xmit");
 
     init_ring();
     TheSNIC.iobase = 0;
-    nic_init(&TheSNIC, NIC_ADDR, prom, NULL);
+    nic_init(&TheSNIC, snic_addr, prom, NULL);
 
-    printf("ne2000: irq %d @ 0x300 mac = %X:%X:%X:%X:%X:%X\n",
-           snic_irq,prom[0],prom[1],prom[2],prom[3],prom[4],prom[5]);    
+    printf("ne2000: irq %d @ 0x%S mac = %X:%X:%X:%X:%X:%X\n",
+           snic_irq,snic_addr,prom[0],prom[1],prom[2],prom[3],prom[4],prom[5]);    
 
     nic_register_notify(&TheSNIC,receive,NULL);
 	printf("ne2000: IP %d.%d.%d.%d\n",IP[0],IP[1],IP[2],IP[3]);

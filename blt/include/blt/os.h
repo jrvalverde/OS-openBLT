@@ -108,7 +108,12 @@ typedef struct
 	} r_un;
 } rsrc_info;
 		
-		
+typedef struct 
+{
+	void (*func)(void);
+	int priority;
+} init_info;
+
 #define META_NULL_REQUEST    0
 #define META_MIN_RESERVED    0xf0000000
 #define META_MAX_RESERVED    0xffffffff

@@ -2,8 +2,7 @@ BLTHOME := ../../
 include $(BLTHOME)make.conf
 
 CFLAGS		+= -fno-rtti -fno-exceptions -fno-pic -O2
-CRT0		:= $(BLTHOME)lib/c++rt0.o
-LIBS		:= -lc -lblt -lc++ -lconsole 
+LIBS		:= -lposix -lblt -lc
 BINARY		:= window_server.bin
 
 OBJS := main.o GraphicsContext.o Region.o  \

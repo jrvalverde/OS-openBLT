@@ -177,36 +177,51 @@ __irq7:
 	jmp __irq
 __irq8:	
 	pushl $8
-	jmp __irq
+	jmp __irqhi
 __irq9:	
 	pushl $9
-	jmp __irq	
+	jmp __irqhi	
 __irq10:	
 	pushl $10
-	jmp __irq	
+	jmp __irqhi	
 __irq11:	
 	pushl $11
-	jmp __irq	
+	jmp __irqhi	
 __irq12:	
 	pushl $12
-	jmp __irq	
+	jmp __irqhi	
 __irq13:	
 	pushl $13
-	jmp __irq	
+	jmp __irqhi	
 __irq14:	
 	pushl $14
-	jmp __irq	
+	jmp __irqhi	
 __irq15:	
 	pushl $15
-	jmp __irq
+	jmp __irqhi
 	
 __irq:
 	pusha
 
 	call irq_dispatch
 		
-	movb $32, %al
-	outb %al, $32
+	movb $0x20, %al
+	outb %al, $0x20
+	
+	popa
+	add $4,%esp
+	iret
+
+__irqhi:
+	pusha
+
+	call irq_dispatch
+		
+	movb $0x20, %al
+	outb %al, $0xA0
+
+	movb $0x20, %al
+	outb %al, $0x20
 	
 	popa
 	add $4,%esp

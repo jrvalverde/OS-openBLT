@@ -1,36 +1,13 @@
-/* $Id$
-**
-** Copyright 1998 Brian J. Swetland
-** All rights reserved.
-**
-** Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions
-** are met:
-** 1. Redistributions of source code must retain the above copyright
-**    notice, this list of conditions, and the following disclaimer.
-** 2. Redistributions in binary form must reproduce the above copyright
-**    notice, this list of conditions, and the following disclaimer in the
-**    documentation and/or other materials provided with the distribution.
-** 3. The name of the author may not be used to endorse or promote products
-**    derived from this software without specific prior written permission.
-**
-** THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-** IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-** OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-** IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-** INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-** NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* Copyright 1998-1999, Brian J. Swetland. All rights reserved.
+** Distributed under the terms of the OpenBLT License
 */
+
 #include <string.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <i386/io.h>
 #include <blt/namer.h>
 #include <blt/syscall.h>
-#include <blt/conio.h>
 
 #include "dfp.h"
 #include "vga.h"
@@ -763,7 +740,6 @@ void fishmain(void)
     unsigned char data[1500];
     msg_hdr_t msg;
     int i;
-    int nh;    
     int size;
     net_cmd cmd;
     unsigned char ip[4];
@@ -774,15 +750,11 @@ void fishmain(void)
     keybuf2[0] = '>';
     keybuf2[1] = ' ';
     
-    nh = namer_newhandle();
-/*    while((port_console = namer_find(nh,"console")) < 1)
-        for(i=0;i<100000;i++);*/
-    if((port_net = namer_find(nh,"net")) < 1) WITH_NET = 0;
-    if((port_net_xmit = namer_find(nh,"net_xmit")) < 1) WITH_NET = 0;
+    if((port_net = namer_find("net",0)) < 1) WITH_NET = 0;
+    if((port_net_xmit = namer_find("net_xmit",0)) < 1) WITH_NET = 0;
   
     port_fish = port_create(0, "fish_tell_port");
-    namer_register(nh, port_fish, "fish:tell");
-    namer_delhandle(nh);
+    namer_register(port_fish, "fish:tell");
 
     vinit();
 

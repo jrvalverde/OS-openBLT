@@ -11,14 +11,12 @@ Window::Window(long left, long top, long right, long bottom)
 	:	fShowLevel(0),
 		fCanvasList(0)
 {
-	int nh = namer_newhandle ();
  	int windowServerPort;
- 	windowServerPort = namer_find (nh, "window_server");
+ 	windowServerPort = namer_find ("window_server", 0);
  	if (windowServerPort <= 0) {
  		printf("couldn't connect to window server\n");
  		return;
  	}
- 	namer_delhandle (nh);
 
 	int localReplyPort = port_create(0, "client_syncport");
 	fEventPort = port_create(0, "client_eventport");

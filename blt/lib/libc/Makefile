@@ -1,8 +1,9 @@
 BLTHOME := ../../
 include $(BLTHOME)make.conf
 
-MINIMAL = string.o snprintf.o bcmp.o bzero.o strcmp.o strcpy.o strlen.o strlcat.o strlcpy.o
-EXTRA = malloc.o memory.o printf.o vfs.o errno.o exec.o fdl.o stdio.o qsort.o stdlib.o ctype.o getopt.o
+MINIMAL = string.o snprintf.o strcmp.o strcpy.o strlen.o strlcat.o strlcpy.o
+EXTRA = malloc.o memory.o errno.o qsort.o stdlib.o ctype.o \
+	qsem.o atomic.o syscalls.o cppglue.o
 
 TARGETS		:= libkern.a
 LIBRARY		:= libc.a

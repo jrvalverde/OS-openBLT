@@ -7,6 +7,9 @@ ST			:= strip
 
 all: netrom.hex 
 
+load: netrom.hex
+	./sersend -b 115200 /dev/ports/serial1 < netrom.hex 
+
 makerom: makerom.c
 	gcc -o makerom makerom.c
 
@@ -17,7 +20,7 @@ netrom.hex: netrom netboot.raw makerom
 	cat netrom netboot.raw > temp.raw
 	./makerom temp.raw netrom.hex
 
-OBJS = crt0.o netboot.o ne2000.o 
+OBJS = crt0.o netboot.o pci.o ne2000.o 
 
 netboot.raw: $(OBJS)
 	$(LD) -dN -Ttext 0x90000 -o netboot.bin  $(OBJS) $(LIBS)

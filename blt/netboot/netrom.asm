@@ -4,6 +4,8 @@
 ;   0x02004 [dword] ptable addr
 ;   0x03000 page table
 ;
+;   0x80000 reloc addr
+;
 ;   0x90000 prot mode targ 
 ;   0x93FFF
 
@@ -13,12 +15,34 @@ entry equ 0x90000
 romsize equ 0x4000
 
 	bits 16
-	
+
+rom_start:	
 	dw 0xaa55						; rom signature
 	db 0x20							; rom size (512 byte units)
 	jmp short s1					; entrypoint
 	db 0x42							; checksum (dummy)
 	
+	times 0x18 - ($ - rom_start) db 0
+
+	dw pci_header					; PCI Header Offset
+	dw 0x0000						; PNP Gunk
+
+pci_header:
+	db 'PCIR'
+	dw 0x10ec						; vendor
+	dw 0x8029						; device
+	dw 0x0000						; vital data
+	dw 0x0018						; length
+	db 0							; pci_header version (0)						
+	db 0							; protocol
+	db 0							; subclass (ethernet)
+	db 2							; class (network)
+	dw 0x0000						; image length
+	dw 0x0000						; revision
+	db 0							; code type (x86)
+	db 0x80							; indicates this is last image
+	dw 0x0000						; reserved
+
 s1:
 	push ds							; hook into the boot sequence
 	
@@ -34,14 +58,33 @@ s1:
 start:
 	cli
 	cld
+
+	xor di,di						; relocate to 8000:0000
+	xor si,si
+
+	mov ax,0x8000
+	mov es,ax
+
+	mov cx,romsize/4
+	cs
+	rep
+	movsd	
 	
 	xor ax,ax
 	mov ss,ax
 	mov sp,0xfffc
 	
-	mov ax,0xc800
+	mov ax,0x8000	
 	mov ds,ax
-	
+
+	jmp 0x8000:start_reloc
+
+start_reloc:
+
+;	mov ax, 0x4f02						; VESA Gunk
+;	mov bx, (0x8000 + 0x4000 + 0x105)
+;	int 0x10
+
 	call enableA20
 	
 	lgdt [unGDT]
@@ -50,11 +93,11 @@ start:
 	or al, 1
 	mov cr0, eax
 
-;	jump dword 0x8:0xc800 + setsegs
+;	jump dword 0x8:(0x80000 + setsegs)
 	db 0x66, 0xea
-	dw setsegs + 0x8000
-	dw 0x000c
-	dw 0x08
+	dw setsegs
+	dw 0x0008
+	dw 0x0008
 	
 setsegs:
 	mov bx,0x10
@@ -65,7 +108,7 @@ setsegs:
 	and al,0xfe
 	mov cr0, eax
 	
-	jmp 0xc800:newip
+	jmp 0x8000:newip
 		
 newip:
 	xor ax,ax
@@ -74,11 +117,12 @@ newip:
 	mov ss,ax
 	
 	mov edi,0x90000				; relocate rom to just below 1MB
-	mov esi, eof + 0xc8000
+	mov esi, eof + 0x80000
 	mov ecx, romsize/4
 	rep a32 movsd
 
 	call countmemory
+
 	mov dword [memamt], eax
 	mov dword [ptaddr], 0x3000
 
@@ -132,15 +176,15 @@ goprot:
 	push dword 0x0002
 	popfd
 	
-	lgdt [cs:GDT]
-	
+	lgdt [cs:GDT]	
+
 	mov cr3, ecx
 	mov eax, 0x80000001
 	mov cr0, eax
-	
+
 ;	jmp far prot
 	db 0x66, 0xea
-	dw 0x8000 + prot, 0x000c, 0x0008
+	dw 0x0000 + prot, 0x0008, 0x0008
 	
 prot:
 	bits 32
@@ -163,12 +207,12 @@ prot:
 	align 8
 	
 unGDT:
-	dw 0xffff, unGDT + 0x8000, 0x000c, 0x0000			; offset unGDT
+	dw 0xffff, unGDT + 0x0000, 0x0008, 0x0000			; offset unGDT
 	db 0xff, 0xff, 0x00, 0x00, 0x00, 0x9a, 0x8f, 0x00	; kCS (0x08) CPL0
 	db 0xff, 0xff, 0x00, 0x00, 0x00, 0x92, 0x8f, 0x00	; kDS (0x10)
 	
 GDT:
-	dw 0xffff, GDT + 0x8000, 0x000c, 0x0000				; offset GDT
+	dw 0xffff, GDT + 0x0000, 0x0008, 0x0000				; offset GDT
 	db 0xff, 0xff, 0x00, 0x00, 0x00, 0x9a, 0xcf, 0x00	; kCS (0x08)
 	db 0xff, 0xff, 0x00, 0x00, 0x00, 0x92, 0xcf, 0x00	; kDS (0x10)
 

@@ -89,7 +89,7 @@ int __dl_patch_section (lib_t *lib, elf32_rel_t *rel, int size)
 						p = p->next;
 				if (!sym)
 				{
-					_printf ("unresolved symbol %s\n", name);
+					//_printf ("unresolved symbol %s\n", name);
 					return -1;
 				}
 				if (p != file)
@@ -113,8 +113,8 @@ int __dl_patch_section (lib_t *lib, elf32_rel_t *rel, int size)
 				break;
 
 			default:
-				_printf ("unknown relocation type %d; crashing soon...\n",
-					ELF32_R_TYPE (rel[i].r_info));
+				//_printf ("unknown relocation type %d; crashing soon...\n",
+				//	ELF32_R_TYPE (rel[i].r_info));
 				break;
 		}
 	}

@@ -1,37 +1,11 @@
-/* $Id$
-**
-** Copyright 1998 Brian J. Swetland
-** All rights reserved.
-**
-** Redistribution and use in source and binary forms, with or without
-** modification, are permitted provided that the following conditions
-** are met:
-** 1. Redistributions of source code must retain the above copyright
-**    notice, this list of conditions, and the following disclaimer.
-** 2. Redistributions in binary form must reproduce the above copyright
-**    notice, this list of conditions, and the following disclaimer in the
-**    documentation and/or other materials provided with the distribution.
-** 3. The name of the author may not be used to endorse or promote products
-**    derived from this software without specific prior written permission.
-**
-** THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
-** IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-** OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-** IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
-** INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-** NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-** DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-** THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/* Copyright 1998-1999, Brian J. Swetland. All rights reserved.
+** Distributed under the terms of the OpenBLT License
 */
 
 #include "kernel.h"    
 #include "memory.h"
 #include "port.h"
 #include "resource.h"
-
-#include "assert.h"
 
 #define MAX_MSGCOUNT    16
 
@@ -187,9 +161,6 @@ int port_send(msg_hdr_t *mh)
         }
     }
 
-/*    kprintf("task %X: copyin %x -> %x (%d)\n",current->rid,
-            (int) msg, (int) m->data,  size);*/
-    
     for(i=0;i<size;i++){
         ((unsigned char *) m->data)[i] = *((unsigned char *) msg++);
 	}
@@ -252,10 +223,6 @@ int port_recv(msg_hdr_t *mh)
     }
     
     m = p->first;
-/*    kprintf("task %X: copyout %x -> %x (%d/%d)\n",current->rid,
-            (int) m->data, (int) msg, m->size, size);
-            */  
-    Assert(m->size <= 4096);
     for(i=0;i<m->size && (i <size);i++){
         *((unsigned char *) msg++) = ((unsigned char *) m->data)[i];
     }
@@ -279,8 +246,6 @@ int port_recv(msg_hdr_t *mh)
         msg_pool = ((chain_t *) m->data);
     }
     kfree(message_t,m);
-/*  kprintf("       : DONE\n");
- */
     return size < m->size ? size : m->size;
 }
 

@@ -4,9 +4,9 @@ include $(BLTHOME)make.conf
 
 CFLAGS		+= -I../kernel
 BINARY		:= boot.bin
-OBJS		:= boot.o
+OBJS		:= bootstub.o boot.o
 LIBS		:= -lconsole
 ENTRY		:= $(ENTRY_BOOTSTRAP)
-CRT0		:= bootstub.o
+CRT0		:= 
 
 include $(BLTHOME)make.actions

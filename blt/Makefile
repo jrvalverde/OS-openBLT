@@ -10,8 +10,12 @@ SUBDIRS		:= lib kernel srv boot bin util
 image: subdirs
 	./util/bootmaker boot/openblt.ini boot/openblt.boot
 
-floppy:
+floppy: subdirs
 	./util/bootmaker boot/openblt.ini boot/openblt.boot -floppy
+
+fimage: floppy
+	dd if=/dev/zero of=fd.img bs=1024 count=1440
+	dd if=boot/openblt.boot of=fd.img conv=notrunc
 
 bfloppy: floppy
 	dd if=boot/openblt.boot of=/dev/disk/floppy/raw bs=18k

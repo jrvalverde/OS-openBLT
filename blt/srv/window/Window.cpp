@@ -273,7 +273,7 @@ void Window::PostEvent(Event *event)
 Rect Window::LocalToScreen(const Rect &inRect) const
 {
 	Rect outRect = inRect;
-	for (Window *window = this; window; window = window->fParent)
+	for (const Window *window = this; window; window = window->fParent)
 		outRect.OffsetBy(window->fFrame.left, window->fFrame.top);
 	
 	return outRect;
@@ -282,7 +282,7 @@ Rect Window::LocalToScreen(const Rect &inRect) const
 Rect Window::ScreenToLocal(const Rect &inRect) const
 {
 	Rect outRect = inRect;
-	for (Window *window = this; window; window = window->fParent)
+	for (const Window *window = this; window; window = window->fParent)
 		outRect.OffsetBy(-window->fFrame.left, -window->fFrame.top);
 	
 	return outRect;

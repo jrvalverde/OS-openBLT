@@ -207,16 +207,14 @@ void network_tell (const char *msg)
 int network_main (volatile int *ready)
 {
 	char *buffer;
-	int nh, len;
+	int len;
 	msg_hdr_t mh;
 
 	ctl_port = port_create (0, "network_ctl_port");
 	tell_port = port_create (0, "network_tell_port");
 	port_slave (ctl_port, tell_port);
-	nh = namer_newhandle ();
-	namer_register (nh, ctl_port, "network");
-	namer_register (nh, tell_port, "network:tell");
-	namer_delhandle (nh);
+	namer_register (ctl_port, "network");
+	namer_register (tell_port, "network:tell");
 
 	printf ("network: ready.\n");
 	buffer = malloc (len = 256);
@@ -236,7 +234,7 @@ int network_main (volatile int *ready)
 			network_tell (buffer);
 			mh.dst = mh.src;
 			mh.src = tell_port;
-			mh.data = &nh;
+			mh.data = &tell_port;
 			mh.size = 1;
 			port_send (&mh);
 		}
