@@ -111,57 +111,76 @@ void nic_block_output(snic *nic, unsigned char *buf, uint len, uint page);
 #define NIC_DMA_DISABLE	0x20	/* Disable DMA */
 
 /* Data Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS		0x01	/* Word Trans0x40Configuration Register */
-#define DCR_WTS	
+#define DCR_WTS		0x01	/* Word Transfer Select (0=byte, 1=word) */
+#define DCR_BOS		0x02	/* Byte Order Select (0=big-endian) */
+#define DCR_LAS		0x04	/* Long Address Select (0=dual 16-bit DMA) */
+#define	DCR_LS		0x08	/* Loopback Select (0=loopback) */
+#define DCR_AR		0x10	/* Auto Initialize Remote */
+#define DCR_FT		0x60	/* (FT0 & FT1) FIFO Threshhold (see datasheet) */
+/*#define DCR_DEFAULT	0x58	/* Standard value for the DCR register */
+#define DCR_DEFAULT	0x48	/* don't use Automatic send packet */
+#define DCR_DEFAULT_WORD 0x49	/* defuault with wold length transfer */
+
+/* Recieve Configure Register */
+#define RCR_SEP		0x01	/* Save Errored Packets */
+#define RCR_AR		0x02	/* Accept Runt Packets */
+#define RCR_AB		0x04	/* Accept Broadcast */
+#define RCR_AM		0x08	/* Accept Multicast */
+#define RCR_PRO		0x10	/* Promiscuous Physical */
+#define RCR_MON		0x20	/* Monitor Mode */
+/*#define RCR_DEFAULT	0x00	/* Standard value for the RCR register */
+#define RCR_DEFAULT	0x0c	/* Accept Broadcast/Multicast Packets */
+
+/* Recieve Status Register */
+/* note, this is also stored in the status byte in the buffer header. */
+/* That's the 4 byte entry in the local buffer, not the packet header. */
+#define RSR_PRX		0x01	/* Pakcet Received Intact */
+#define RSR_CRC		0x02	/* CRC Error */
+#define RSR_FAE		0x04	/* Frame Alignment Error */
+#define RSR_FO		0x08	/* FIFO Overrun */
+#define RSR_MPA		0x10	/* Missed Packet */
+#define RSR_PHY		0x20	/* Physical/Multicast Address (0=physical) */
+#define RSR_DIS		0x40	/* Receiver Disabled */
+#define RSR_DFR		0x80	/* Deferring */
+
+/* Transmit Configure Register */
+#define TCR_CRC		0x01	/* Inhibit CRC (0=CRC active) */
+#define TCR_LB		0x06	/* (LB0 & LB1) Encoded Loopback Control */
+#define TCR_ATD		0x08	/* Auto Transmit Disable (0=normal) */
+#define TCR_OFST	0x10	/* Collision Offset Enable (1=low priority) */
+#define TCR_DEFAULT	0x00	/* Standard value for the TCR register */
+#define TCR_INTERNAL_LOOPBACK 0x02 /* Internal loopback configuration */
+
+/* Transmit Status Register */
+#define TSR_PTX		0x01	/* Packet Transmitted */
+#define TSR_ND		0x02	/* Non-Deferral (Documented???) */
+#define TSR_COL		0x04	/* Transmit Collided */
+#define TSR_ABT		0x08	/* Transmit Aborted */
+#define TSR_CRS		0x10	/* Carrier Sense Lost */
+#define TSR_FU		0x20	/* FIFO Underrun */
+#define TSR_CDH		0x40	/* CD Heartbeat */
+#define TSR_OWC		0x80	/* Oout of Window Collision */
+
+/* Interrupt Status Register */
+#define ISR_PRX		0x01	/* Packet Received */
+#define ISR_PTX		0x02	/* Packet Transmitted */
+#define ISR_RXE		0x04	/* Receive Error */
+#define ISR_TXE		0x08	/* Transmit Error */
+#define ISR_OVW		0x10	/* Overwrite Warning */
+#define ISR_CNT		0x20	/* Counter Overflow */
+#define ISR_RDC		0x40	/* Remote DMA Complete */
+#define ISR_RST		0x80	/* Reset Status */
+#define ISR_DEFAULT	0x00	/* Standard value for the ISR register */
+#define ISR_ALL		0x3f	/* The services that we handle in the isr */
+
+/* Interrupt Mask Register */
+#define IMR_PRXE	0x01	/* Packet Received Interrupt Enable */
+#define IMR_PTXE	0x02	/* Packet Transmitted Interrupt Enable */
+#define IMR_RXEE	0x04	/* Receive Error Interrupt Enable */
+#define IMR_TXEE	0x08	/* Transmit Error Interrupt Enable */
+#define IMR_OVWE	0x10	/* Overwrite Warning Interrupt Enable */
+#define IMR_CNTE	0x20	/* Counter Overflow Interrupt Enable */
+#define IMR_RDCE	0x40	/* DMA Complete Interrupt Enable */
+#define IMR_DEFAULT	0x3f	/* CNTE | OVWE | TXEE | RXEE | PTXE | PRXE */
+
+#endif
