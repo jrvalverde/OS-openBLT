@@ -19,4 +19,6 @@ typedef struct __team_t team_t;
 typedef struct __list_t list_t;
 typedef struct __node_t node_t;
 
+typedef struct __pager_fault_t pager_fault_t;
+
 #endif

@@ -25,6 +25,8 @@ typedef struct
     uint16 debugtrap, iomapbase;
 } TSS;
 
+typedef struct { uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax; } regs;
+
 /* rights bits options */
 #define i386rPRESENT 0x80   /* segment is present */
 

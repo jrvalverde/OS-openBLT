@@ -10,12 +10,12 @@
 #include "aspace.h"
 #include "task.h"
 #include "smp.h"
+#include "rights.h"
 
 #include <blt/syscall_id.h>
 
 extern task_t *irq_task_map[16];
 
-typedef struct { uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax; } regs;
 void k_debugger(regs *r, uint32 eip, uint32 cs, uint32 eflags);
 
 extern int live_tasks;
@@ -29,7 +29,7 @@ void wake_the_reaper(void)
 	task_t *task;
 	sem_t *sem = rsrc_find_sem(reaper_sem);
 	sem->count++;
-	if(task = rsrc_dequeue(&sem->rsrc)) task_wake(task,ERR_NONE);
+	if((task = rsrc_dequeue(&sem->rsrc)) != NULL) task_wake(task,ERR_NONE);
 }
 
 void terminate(void)
@@ -42,7 +42,8 @@ void terminate(void)
     current->flags = tDEAD;
 	
 	/* wake all blocking objects */
-	while(t0 = list_detach_head(&t->rsrc.queue)) task_wake(t0,ERR_RESOURCE);
+	while((t0 = list_detach_head(&t->rsrc.queue)) != NULL)
+		task_wake(t0,ERR_RESOURCE);
 	
 	wake_the_reaper();
 	
@@ -68,9 +69,6 @@ int metacall (volatile uint32 *esp);
 void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 	volatile uint32 *esp)
 {
-	char *c, **argv, **temp_argv, **orig_argv;
-	int i, j, len, total;
-    unsigned int config;
 #if 0
 	kprintf("* %d %x #%d@%x",current->rsrc.id,eip,r.eax,(uint32)esp);
 #endif

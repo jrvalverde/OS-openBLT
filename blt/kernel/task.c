@@ -60,6 +60,7 @@ task_t *task_create(team_t *team, uint32 ip, uint32 sp, int kernel)
 	t->esp0 = t->esp;
 	t->scount = 0;
 	t->stack_area = NULL;
+	t->team = team;
 	
 	t->node.data = t;
 	

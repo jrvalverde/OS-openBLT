@@ -62,6 +62,7 @@ void aspace_protect(aspace_t *a, uint32 virt, uint32 flags);
 
 /* userland stuff */
 int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 flags);
+int area_create_uber(off_t size, void *addr);
 int area_destroy(aspace_t *aspace, int area_id);
 int area_clone(aspace_t *aspace, int area_id, off_t virt, void **addr, uint32 flags);
 int area_destroy(aspace_t *aspace, int area_id);

@@ -9,6 +9,8 @@
 
 #define MAX_MSGCOUNT    16
 
+int snprintf (char *s, int len, char *fmt, ...);
+
 int port_create(int restrict, const char *name)
 {
     port_t *p;
@@ -107,7 +109,8 @@ int port_send(msg_hdr_t *mh)
     void *msg;
     port_t *f,*p;
 
-    if(((uint32) mh) > 0x400000) return ERR_MEMORY;
+    if((current->team != kernel_team) && (((uint32) mh) > 0x400000))
+		return ERR_MEMORY;
     size = mh->size;    
     msg = mh->data;
     
@@ -139,7 +142,7 @@ int port_send(msg_hdr_t *mh)
 	while(p->msgcount >= MAX_MSGCOUNT){
 		int status;
 		if(p->nowait) return ERR_WOULD_BLOCK;
-		if(status = wait_on(p->sendqueue)) return status;
+		if((status = wait_on(p->sendqueue))) return status;
 	}
 
         /* ignore invalid sizes/locations */
@@ -202,7 +205,8 @@ int port_recv(msg_hdr_t *mh)
     void *msg;    
     port_t *p;
 
-    if(((uint32) mh) > 0x400000) return ERR_MEMORY;
+    if((current->team != kernel_team) && (((uint32) mh) > 0x400000))
+		return ERR_MEMORY;
     size = mh->size;    
     msg = mh->data;
 
@@ -213,13 +217,14 @@ int port_recv(msg_hdr_t *mh)
 #endif
  
         /* bounds check the message... should be more careful */
-    if(((uint32) msg) > 0x400000) return ERR_MEMORY;
+    if((current->team != kernel_team) && (((uint32) msg) > 0x400000))
+		return ERR_MEMORY;
 
         /* no messages -- sleep */
     while(!p->msgcount) {
 		int status;
         if (p->nowait) return ERR_WOULD_BLOCK;
-		if(status = wait_on(&p->rsrc)) return status;
+		if((status = wait_on(&p->rsrc))) return status;
     }
     
     m = p->first;

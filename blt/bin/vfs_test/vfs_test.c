@@ -16,6 +16,7 @@
 
 int main (void)
 {
+#if 0
 	int i, j, k;
 	msg_hdr_t mh;
 	qsem_t *sem;
@@ -94,6 +95,12 @@ int main (void)
 	else
 		printf ("error: %s\n", dlerror ());
 */
+#endif
+
+	int *ptr;
+
+	ptr = 1;
+	printf ("hello %d\n", *ptr);
 
 	return 0;
 }
