@@ -4,7 +4,7 @@ include ../make.conf
 
 CFLAGS = $(CF) -I../include
 
-all: obj crt0.o libc libblt libconsole
+all: obj crt0.o libc libblt libconsole libdl
 
 obj:
 	mkdir obj
@@ -15,6 +15,8 @@ obj:
 	ln -fs ../libc/libkern.a obj
 	ln -fs ../libconsole/libconsole.a obj
 	ln -fs ../libconsole/libconsole.so obj
+	ln -fs ../libdl/libdl.a obj
+	ln -fs ../libdl/libdl.so obj
 
 libc::
 	@cd libc ; $(MAKE)
@@ -25,9 +27,13 @@ libconsole::
 libblt::
 	@cd libblt ; $(MAKE)
 
+libdl::
+	@cd libdl ; $(MAKE)
+
 clean:
 	rm -rf obj
 	rm -f *.a *.so *.o *~ os.* core *.core *.s *.map *.bin
 	@cd libc ; $(MAKE) clean
 	@cd libblt ; $(MAKE) clean
 	@cd libconsole ; $(MAKE) clean
+	@cd libdl ; $(MAKE) clean

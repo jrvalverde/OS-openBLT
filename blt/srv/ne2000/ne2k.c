@@ -45,9 +45,11 @@
 static unsigned char *loadip = (unsigned char *) 0x1020;
 
 static snic TheSNIC;
+int snic_irq = NIC_IRQ;
+
 
 static unsigned char prom[32];
-static unsigned char IP[4];	/* we get our ip from the booter */
+static unsigned char IP[4] = { 10, 113, 216, 6 };	/* we get our ip from the booter */
 
 /* messaging */
 static int port_isr = 0;
@@ -637,18 +639,45 @@ static int check_avail(void * foo)
 	return (foo) ? 1 : 0;
 }
 
-int main(void)
+void ISR(void)
+{
+    os_handle_irq(snic_irq);
+
+    for(;;){
+        os_sleep_irq();
+        qsem_acquire(mutex);
+        nic_isr(&TheSNIC);
+        qsem_release(mutex);
+    }
+}
+
+int atoi(char *x)
+{
+	int n = 0;
+	while(*x) {
+		n = (n * 10) + (*x - '0');
+		x++;
+	}
+	return n;
+}
+
+int main(int argc, char **argv)
 {
     int i;
     int nh;    
-    int snic_irq = NIC_IRQ;
 
     __libc_init_console();
 
-    if(loadip[0]=='i' && loadip[1]=='p'){
-        memcpy(IP,loadip+2,4);   
-    }
+//    if(loadip[0]=='i' && loadip[1]=='p'){
+//        memcpy(IP,loadip+2,4);   
+//    }
     
+	if(argc == 5){
+		for(i=0;i<4;i++){
+			IP[i] = atoi(argv[i+1]);
+		}
+	}
+		
     os_brk(RINGSIZE*PACKETSIZE*2);
 
     sem_ring = qsem_create(1);
@@ -662,8 +691,6 @@ int main(void)
     namer_register(nh, port_isr,"net_xmit");
     namer_delhandle(nh);
 
-    os_handle_irq(snic_irq);
-
     init_ring();
     TheSNIC.iobase = 0;
     nic_init(&TheSNIC, NIC_ADDR, prom, NULL);
@@ -672,6 +699,7 @@ int main(void)
            snic_irq,prom[0],prom[1],prom[2],prom[3],prom[4],prom[5]);    
 
     nic_register_notify(&TheSNIC,receive,NULL);
+	printf("ne2000: IP %d.%d.%d.%d\n",IP[0],IP[1],IP[2],IP[3]);
     
     printf("ne2000: starting sender, dispatcher, and control\n");
 
@@ -687,13 +715,7 @@ int main(void)
 
 /*    printf("TS=%X TD=%X\n",ts,td);*/
     
-    for(;;){
-        os_sleep_irq();
-        qsem_acquire(mutex);
-        nic_isr(&TheSNIC);
-        qsem_release(mutex);
-    }
-    nic_stop(&TheSNIC);
-
+	os_thread(ISR);
+	
     return 0;
 }

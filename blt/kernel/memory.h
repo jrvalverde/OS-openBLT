@@ -32,26 +32,21 @@
 #define KM16   0
 #define KM32   1
 #define KM64   2
-#define KM128  3
-#define KM256  4
-#define KM512  5
-#define KM1024 6
+#define KM96   3
+#define KM128  4
+#define KM192  5
+#define KM256  6
+#define KMMAX  7
 
-void *kmalloc(int size);
+void *kmallocP(int size);
 void *kmallocB(int size);
-void kfree(int size, void *block);
+void kfreeP(int size, void *block);
 void kfreeB(int size, void *block);
 void memory_init(void);
 void memory_status(void);
 
-#define kmalloc16() kmalloc(KM16)
-#define kmalloc32() kmalloc(KM32)
-#define kmalloc64() kmalloc(KM64)
-#define kmalloc128() kmalloc(KM128)
-#define kfree16(v)  kfree(KM16,v)
-#define kfree32(v)  kfree(KM32,v)
-#define kfree64(v)  kfree(KM64,v)
-#define kfree128(v)  kfree(KM128,v)
+#define kmalloc(type) kmallocB(sizeof(type))
+#define kfree(type,ptr) kfreeB(sizeof(type),ptr)
 
 #endif
 

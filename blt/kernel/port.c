@@ -30,18 +30,15 @@
 #include "memory.h"
 #include "port.h"
 #include "resource.h"
-#include "queue.h"
 
 #include "assert.h"
-
-extern queue_t *run_queue;
 
 int port_create(int restrict)
 {
     port_t *p;
 
         /* create new port */
-    p = kmalloc64();
+    p = kmalloc(port_t);
     
     p->msgcount = 0;
     p->first = p->last = NULL;
@@ -63,7 +60,7 @@ int port_destroy(int port)
     if(p->refcount == 1) {                
             /* destroy port */
 		rsrc_release(&p->rsrc);
-        kfree64(p); /* XXX check */
+        kfree(port_t,p); /* XXX check */
         return ERR_NONE;    
     }
 
@@ -160,10 +157,10 @@ int port_send(msg_hdr_t *mh)
         (((uint32) msg) > 0x400000) ||
         (size > 4096)) return ERR_MEMORY;    
 
-    m = kmalloc32();
+    m = kmalloc(message_t);
     
         /* allocate a 4k page to carry the message. klunky... */
-    if(size < 1025){
+    if(size < 256){
         m->data = kmallocB(size);        
     } else {
         if(msg_pool){
@@ -192,19 +189,19 @@ int port_send(msg_hdr_t *mh)
     p->last = m;
     p->msgcount++;
 
-    /*
-     * wake our owner if he's sleeping on us.  we must check both the port
-     * sent to as well as the port we delivered to since they will be
-     * different if the original destination is slaved.
-     */
-    if(p->rsrc.owner->flags == tSLEEP_PORT &&
-       ((p->rsrc.owner->sleeping_on == mh->dst) ||
-        (p->rsrc.owner->sleeping_on == p->rsrc.id))) {
-/*        kprintf("task %X: waking task %X on port %d\n",current->rid,
-                p->owner->rid,mh->dst);        */
-        p->rsrc.owner->flags = tREADY;
-        queue_addTail(run_queue, p->rsrc.owner, 0);        
-    }
+
+	/* If a thread is sleeping on the destination, wake it up
+	*/	
+	if(p->slaved){
+		port_t *p0 = rsrc_find_port(p->slaved);
+		if(p0){
+			task_t *task = rsrc_dequeue((resource_t*)p0);
+			if(task) rsrc_enqueue(run_queue, task);
+		}
+	} else {
+		task_t *task = rsrc_dequeue((resource_t*)p);
+		if(task) rsrc_enqueue(run_queue, task);
+	}	
     
     return size;
 }
@@ -232,14 +229,9 @@ int port_recv(msg_hdr_t *mh)
 
         /* no messages -- sleep */
     while(!p->msgcount) {
-        if (p->nowait)
-			return ERR_WOULD_BLOCK;
-        current->sleeping_on = mh->dst;
-        current->flags = tSLEEP_PORT;
-/*        kprintf("task %X: sleeping on port %d\n",current->rid,mh->dst);      */  
-        swtch();        
-/*        if(i != current->rid) panic("who am i?"); 
-        kprintf("task %X: waking up\n",current->rid);        */
+        if (p->nowait) return ERR_WOULD_BLOCK;
+		
+		wait_on((resource_t*)p);	/* XXX check status */
     }
     
     m = p->first;
@@ -259,13 +251,13 @@ int port_recv(msg_hdr_t *mh)
     p->msgcount--;
 
         /* add to the freepool */
-    if(m->size < 1025){
+    if(m->size < 256){
         kfreeB(m->size,m->data);
     } else {
         ((chain_t *) m->data)->next = msg_pool;
         msg_pool = ((chain_t *) m->data);
     }
-    kfree32(m);
+    kfree(message_t,m);
 /*  kprintf("       : DONE\n");
  */
     return size < m->size ? size : m->size;

@@ -1,6 +1,6 @@
 /* $Id$
 **
-** Copyright 1998 Brian J. Swetland
+** Copyright 1999 Sidney Cammeresi
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -26,21 +26,24 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _SEM_H
-#define _SEM_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <dlfcn.h>
+#include <blt/libsyms.h>
+#include "dl-int.h"
 
-#include "resource.h"
+weak_alias (_dlsym, dlsym)
 
-struct __sem_t 
+void *_dlsym (void *handle, const char *symbol)
 {
-	resource_t rsrc;
+	int i;
+	lib_t *lib;
 
-    int count;
-};
+	lib = handle;
+	for (i = 0; i < lib->dynsym_size / sizeof (elf32_sym_t); i++)
+		if (!strcmp (lib->dynstr_data + lib->dynsym_data[i].st_name, symbol))
+			return (void *) ((unsigned int) lib->hdr +
+				lib->dynsym_data[i].st_value);
+	return NULL;
+}
 
-int sem_create(int count);
-int sem_destroy(int sem);
-int sem_acquire(int id);
-int sem_release(int id);
-
-#endif

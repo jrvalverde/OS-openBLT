@@ -1,6 +1,6 @@
 # $Id$
 
-all: namer console2 ne2000 video vfs init
+all: namer console2 ne2000 video vfs init fish
 
 console::
 	@echo "--- srv/console ---------"

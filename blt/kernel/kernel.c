@@ -36,7 +36,6 @@
 #include "resource.h"
 #include "aspace.h"
 #include "task.h"
-#include "queue.h"
 #include "smp.h"
 
 #include "assert.h"
@@ -65,7 +64,7 @@ uint32 _cr3;
 task_t *idle_task;
 int live_tasks = 0;
 
-queue_t *run_queue;
+resource_t *run_queue, *timer_queue, *reaper_queue;
 
 uint32 memsize; /* pages */
 uint32 memtotal;
@@ -164,12 +163,15 @@ void init_kspace(void)
     memory_init();
     
 
-	kernel = (task_t *) kmalloc128();
+	kernel = (task_t *) kmalloc(task_t);
 	ktss = (TSS *) kgetpages(1,3);
     kernel->flags = tKERNEL;
 	kernel->rsrc.id = 0;
 	kernel->rsrc.owner = NULL;
 	kernel->rsrc.rights = NULL;
+	kernel->rsrc.queue_count = 0;
+	kernel->rsrc.queue_head = NULL;
+	kernel->rsrc.queue_tail = NULL;
     current = kernel;
 
     init_idt(idt = kgetpages(1,3));      /* init the new idt, save the old */
@@ -217,18 +219,19 @@ void init_kspace(void)
 	ktss->ss0 = SEL_KDATA;
     ktss->esp1 = ktss->esp2 = ktss->ss1 = ktss->ss2 = 0;
     i386ltr(SEL_KTSS);
-
-    run_queue = queue_new(0);    
 }
 
-
-void preempt(void)
+/* current is running -- we want to throw it on the run queue and
+   transfer control to the preemptee */
+void preempt(task_t *task)
 {
-	uint32 *savestack;
-    current->flags = tREADY;
-    savestack = &(current->esp);
-	
-    current = queue_peekHead(run_queue);
+	uint32 *savestack = &(current->esp);
+
+	/* current thread MUST be running, requeue it */	
+	if(current != idle_task) rsrc_enqueue(run_queue, current);
+
+	/* transfer control to the preemtee -- it had better not be on any queues */	
+    current = task;
     current->flags = tRUNNING;
 	current->scount++;
 	ktss->esp0 = current->esp0;    
@@ -239,30 +242,27 @@ void preempt(void)
 
 void swtch(void)
 {
-    int x,old;    
-	uint32 *savestack;
+	/* current == running thread */
+	uint32 *savestack = &(current->esp);
     
+	/* fast path for the case of only one running thread */
+	if(!run_queue->queue_count && (current->flags == tRUNNING)) return;
+	
 #ifdef __SMP__
     if (smp_my_cpu ())
         return;
 #endif
-
-    current = queue_removeHeadT(run_queue, &x, task_t*);
     
-    savestack = &(current->esp);
-    old = current->rsrc.id;
-    
-    if((current->flags == tRUNNING) || (current->flags == tREADY)) {
-        current->flags = tREADY;
-        if(current != idle_task) queue_addTail(run_queue, current, 0);        
+    if(current->flags == tRUNNING) {
+        if(current != idle_task) rsrc_enqueue(run_queue, current);
     }
 
-    current = queue_peekHead(run_queue);
-
+	/* get the next candidate */
+	current = rsrc_dequeue(run_queue);
+	
     if(!current) {
         if(live_tasks){
             current = idle_task;
-            queue_addTail(run_queue, current, 0);
         } else {
             kprintf("");
             kprintf("No runnable tasks.  Exiting.");
@@ -275,8 +275,7 @@ void swtch(void)
     ktss->esp0 = current->esp0;
     if(*savestack != current->esp){
         _context_switch(savestack, current->esp, current->cr3);
-    }
-    
+    }    
 }
 
 task_t *new_thread(aspace_t *a, uint32 ip, int kernelspace)
@@ -298,7 +297,7 @@ task_t *new_thread(aspace_t *a, uint32 ip, int kernelspace)
     rsrc_bind(&t->rsrc, RSRC_TASK, kernel);
     t->flags = tREADY;
     if(!kernelspace) {
-        queue_addTail(run_queue, t, 0);
+		rsrc_enqueue(run_queue, t);
         live_tasks++;
     }
 
@@ -341,7 +340,11 @@ void go_kernel(void)
 	uberarea = rsrc_find_area(uberareanum = area_create_uber(len, 0x100000));
     kprintf("uberport allocated with rid = %d",uberportnum);
     kprintf("uberarea allocated with rid = %d",uberareanum);
-    
+
+	run_queue = rsrc_find_queue(queue_create("run queue"));
+	reaper_queue = rsrc_find_queue(queue_create("reaper queue"));
+	timer_queue = rsrc_find_queue(queue_create("timer queue"));
+	    
     for(i=3;bdir->bd_entry[i].be_type;i++){
         if(bdir->bd_entry[i].be_type != BE_TYPE_CODE) continue;
         
@@ -365,8 +368,8 @@ void go_kernel(void)
             rsrc_set_owner(&uberport->rsrc, t);
         }
         
-        for(n=0;(t->name[n] = bdir->bd_entry[i].be_name[n]);n++) ;
-
+		rsrc_set_name((resource_t*)t,bdir->bd_entry[i].be_name);
+		
         {
             unsigned char *x =
                 (unsigned char *) (bdir->bd_entry[i].be_offset*4096+0x100074);
@@ -375,7 +378,7 @@ void go_kernel(void)
         kprintf("task %X @ 0x%x, size = 0x%x (%s)",t->rsrc.id,
                 bdir->bd_entry[i].be_offset*4096+0x100000,
                 bdir->bd_entry[i].be_size*4096,
-                t->name);
+                t->rsrc.name);
 
         if(!strcmp(bdir->bd_entry[i].be_name,"ne2000")){
             unsigned char *x =
@@ -393,14 +396,14 @@ void go_kernel(void)
     a = aspace_create();    
     idle_task = new_thread(a, (int) idler, 1);
     rsrc_set_owner(&a->rsrc, idle_task);
-    strcpy(idle_task->name,"idler");
-    strcpy(kernel->name,"openblt kernel");
+	rsrc_set_name((resource_t*)idle_task,"idler");
+	rsrc_set_name((resource_t*)kernel,"kernel");
 
 #ifdef __SMP__
     smp_init ();
 #endif
 
-    //DEBUGGER();
+    DEBUGGER();
     kprintf("starting scheduler...");    
 
 #ifdef __SMP__
@@ -418,7 +421,6 @@ void go_kernel(void)
      * by zeroing them and adding them to the free physical page pool.
      */
         
-    queue_addHead(run_queue, kernel, 0);
     current = kernel;
     current->flags = tDEAD;
     swtch();

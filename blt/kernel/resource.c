@@ -87,7 +87,7 @@ void rsrc_set_owner(resource_t *r, task_t *owner)
                 if(rn->next) {
                     rn->next->prev = rn->prev;
                 }
-                kfree16(rn);
+                kfree(resnode_t,rn);
                 break;
             }
         }		
@@ -96,7 +96,7 @@ void rsrc_set_owner(resource_t *r, task_t *owner)
     r->owner = owner;
     
     if(owner){
-        rn = (resnode_t *) kmalloc16();
+        rn = (resnode_t *) kmalloc(resnode_t);
         rn->resource = r;
         rn->prev = NULL;
         rn->next = owner->resources;
@@ -111,6 +111,13 @@ int rsrc_identify(uint32 id)
     return rmap[id].resource->owner->rsrc.id; 
 }
 
+int queue_create(const char *name)
+{
+	resource_t *rsrc = (resource_t*) kmalloc(resource_t);
+	rsrc_bind(rsrc,RSRC_QUEUE,kernel);
+	rsrc_set_name(rsrc,name);
+	return rsrc->id;
+}
 
 void rsrc_bind(resource_t *rsrc, rsrc_type type, task_t *owner)
 {
@@ -129,15 +136,20 @@ void rsrc_bind(resource_t *rsrc, rsrc_type type, task_t *owner)
     rsrc->type = type;
     rsrc->owner = owner;
     rsrc->rights = NULL;
-    
+	rsrc->name[0] = 0;
+	rsrc->queue_head = NULL;
+	rsrc->queue_tail = NULL;
+	rsrc->queue_count = 0;
+	rsrc->lock = 0;
+	
     if(owner){
-        rn = (resnode_t *) kmalloc16();
+        rn = (resnode_t *) kmalloc(resnode_t);
         rn->resource = rsrc;
         rn->prev = NULL;
         rn->next = owner->resources;
         owner->resources = rn;	
     }
-    rn = (resnode_t *) kmalloc16();
+    rn = (resnode_t *) kmalloc(resnode_t);
     rn->resource = rsrc;
     rn->prev = NULL;
     rn->next = resource_list;
@@ -160,7 +172,7 @@ void rsrc_release(resource_t *r)
             if(rn->next) {
                 rn->next->prev = rn->prev;
             }
-            kfree16(rn);
+            kfree(resnode_t,rn);
             break;
         }
     }
@@ -177,7 +189,7 @@ void rsrc_release(resource_t *r)
                 if(rn->next) {
                     rn->next->prev = rn->prev;
                 }
-                kfree16(rn);
+                kfree(resnode_t,rn);
                 break;
             }
         }	
@@ -190,4 +202,108 @@ void rsrc_release(resource_t *r)
     rfree = id;
 }
 
+void rsrc_set_name(resource_t *r, const char *name)
+{
+	if(name){
+		int i;
+		for(i=0;*name && (i<31);i++){
+			r->name[i] = *name;
+			name++;
+		}
+		r->name[i] = 0;
+	} else {
+		r->name[0] = 0;
+	}
+}
 
+void rsrc_enqueue_ordered(resource_t *rsrc, task_t *task, uint32 wake_time)
+{
+	task_t *t = rsrc->queue_head;
+	task->wait_time = wake_time;
+	task->flags = tWAITING;
+	task->waiting_on = rsrc;
+	rsrc->queue_count++;
+	while(t){
+		if(wake_time < t->wait_time){
+			/* add before an item (possibly at head of list) */
+			task->queue_prev = t->queue_prev;
+			task->queue_next = t;
+			if(task->queue_prev) {
+				task->queue_prev->queue_next = task;
+			} else {
+				rsrc->queue_head = task;
+			}
+			t->queue_prev = task;
+			return;
+		}
+		if(!t->queue_next){
+			/* add after last item (tail of list) */
+			task->queue_prev = t;
+			task->queue_next = NULL;
+			t->queue_next = task;
+			rsrc->queue_tail = task;
+			return;
+		}
+		t = t->queue_next;
+	}
+	
+	/* add the only item */
+	rsrc->queue_tail = task;
+	rsrc->queue_head = task;
+	task->queue_prev = NULL;
+	task->queue_next = NULL;
+}
+
+void rsrc_enqueue(resource_t *rsrc, task_t *task)
+{
+	task->wait_time = 0;
+	task->flags = tWAITING;
+	if(rsrc->queue_tail){
+		rsrc->queue_tail->queue_next = task;
+		task->queue_prev = rsrc->queue_tail;
+		task->queue_next = NULL;
+		rsrc->queue_tail = task;
+	} else {
+		rsrc->queue_tail = task;
+		rsrc->queue_head = task;
+		task->queue_prev = NULL;
+		task->queue_next = NULL;
+	}
+	rsrc->queue_count++;
+	task->waiting_on = rsrc;
+}
+
+task_t *rsrc_dequeue(resource_t *rsrc)
+{
+	task_t *task;
+	task = rsrc->queue_head;
+	if(task){
+		rsrc->queue_head = task->queue_next;
+		if(rsrc->queue_head){
+			rsrc->queue_head->queue_prev = NULL;
+		} else {
+			rsrc->queue_tail = NULL;
+		}
+		rsrc->queue_count--;
+		task->queue_next = NULL;
+		task->queue_prev = NULL;
+		task->waiting_on = NULL;
+		task->flags = tREADY;
+	}
+	return task;
+}
+
+const char *rsrc_typename(resource_t *rsrc)
+{
+	switch(rsrc->type){
+	case RSRC_NONE: return "none";
+	case RSRC_TASK: return "task";
+	case RSRC_ASPACE: return "address space";
+	case RSRC_PORT: return "port";
+	case RSRC_SEM: return "semaphore";
+	case RSRC_RIGHT: return "right";
+	case RSRC_AREA: return "area";
+	case RSRC_QUEUE: return "queue";
+	default: return "????";
+	}
+}

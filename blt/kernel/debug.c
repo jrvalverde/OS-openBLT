@@ -45,8 +45,7 @@ extern resnode_t *resource_list;
 #define RMAX 1024
 
 static char *tstate[] =
-{ "KERNL", "RUNNG", "READY", "DEAD ", "S/PRT", "S/IRQ", "S/TMR", "S/SEM",
-  "S/THR" };
+{ "KERNL", "RUNNG", "READY", "DEAD ", "WAIT ", "S/IRQ", "S/TMR" };
 
 
 void printres(resource_t *r)
@@ -59,7 +58,8 @@ void printres(resource_t *r)
     case RSRC_TASK:
         kprintf("    TASK %U: (state %s/%U) '%s'",r->id,
 		tstate[((task_t*)r)->flags],
-                ((task_t*)r)->sleeping_on, ((task_t*)r)->name);
+                (((task_t*)r)->waiting_on?((task_t*)r)->waiting_on->id:0), 
+				((task_t*)r)->rsrc.name);
         break;
     case RSRC_ASPACE:
         kprintf("  ASPACE %U: @ %x",r->id,((aspace_t*)r)->pdir[0]&0xFFFFF000);
@@ -74,6 +74,10 @@ void printres(resource_t *r)
         kprintf("    AREA %U: virt %x size %x pgroup %x",r->id,
                 ((area_t*)r)->virt_addr * 0x1000, ((area_t*)r)->length * 0x1000,
                 ((area_t*)r)->pgroup);
+		break;
+	case RSRC_QUEUE:
+		kprintf("   QUEUE %U: (count %U) '%s'",r->id,r->queue_count,r->name);
+		break;
     }
 }
 
@@ -83,7 +87,6 @@ void dumprsrc(resnode_t *rn)
 		printres(rn->resource);
 		rn = rn->next;
 	}
-	
 }
 
 void dumptasks(void)
@@ -102,12 +105,12 @@ void dumptasks(void)
                 area_t *area = rsrc_find_area(t->addr->heap_id);
                 if(area) j = area->virt_addr + area->length;
                 else j =0;
-                
             }
             
             kprintf("%U %U %U %s %U %x %x %s",
                     i,t->rsrc.owner->rsrc.id,t->addr->rsrc.id,tstate[t->flags],
-			t->sleeping_on,t->esp /*j*4096*/,t->scount,t->name);
+			(t->waiting_on ? t->waiting_on->id : 0),t->esp /*j*4096*/,t->scount,
+					t->rsrc.name);
             
         }
     }
@@ -120,7 +123,7 @@ void dumptask(int id)
     aspace_t *a;
 
 	if(!(t = rsrc_find_task(id))) {
-		kprintf("no such task %X",id);
+		kprintf("no such task %d",id);
 		return;
 	}
 	
@@ -136,7 +139,7 @@ void dumptask(int id)
     }	
 	kprintf("%U %U %U %s %U %x %s",
 	id,t->rsrc.owner->rsrc.id,t->addr->rsrc.id,tstate[t->flags],
-	t->sleeping_on,j*4096,t->name);
+	(t->waiting_on ? t->waiting_on->id : 0),j*4096,t->rsrc.name);
 	
 
 	kprintf("");
@@ -155,7 +158,7 @@ void dumpports()
         if((p = rsrc_find_port(i))){
             kprintf("%U %U %U %U %U %s",
                     i, p->rsrc.owner->rsrc.id, p->restrict, p->slaved,
-                    p->msgcount, p->rsrc.owner->name);
+                    p->msgcount, p->rsrc.owner->rsrc.name);
         }
     }
 
@@ -241,7 +244,7 @@ void dumpaddr(int id)
 	}
 	
 	if(!a) {
-		kprintf("no such aspace %X",id);
+		kprintf("no such aspace %d",id);
 		return;
 	}
 	
@@ -259,6 +262,31 @@ void dumpaddr(int id)
 void memory_status(void);
 void print_regs(regs *r, uint32 eip, uint32 cs, uint32 eflags);
 
+
+void dumpqueue(int n)
+{
+	resource_t *rsrc;
+	int i;
+	
+	for(i=1;i<RSRC_MAX;i++){
+		if(rsrc = rsrc_find(i,n)){
+			task_t *task;
+			kprintf("resource: %d \"%s\"",rsrc->id,rsrc->name);
+			kprintf("type    : %s",rsrc_typename(rsrc));
+			if(rsrc->owner){
+				kprintf("owner   : %d \"%s\"",
+						rsrc->owner->rsrc.id,rsrc->owner->rsrc.name);
+			}			
+			kprintf("count   : %d",rsrc->queue_count);
+
+			for(task = rsrc->queue_head; task; task = task->queue_next){
+				kprintf("queue   : task %d \"%s\"",task->rsrc.id,task->rsrc.name);
+			}
+			return;
+		}
+	}
+	kprintf("no such resource %d",n);
+}
 
 static char linebuf[80];
 void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
@@ -282,6 +310,7 @@ void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
         line = kgetline(linebuf,80);
 		
         if(!strcmp(line,"resources")) { dumprsrc(resource_list); continue; }
+		if(!strncmp(line,"queue ",6)) { dumpqueue(readnum(line+6)); continue; }
         if(!strcmp(line,"tasks")) { dumptasks(); continue; }
         if(!strncmp(line,"task ",5)) { dumptask(readnum(line+5)); continue; }
         if(!strcmp(line,"ports")) { dumpports(); continue; }

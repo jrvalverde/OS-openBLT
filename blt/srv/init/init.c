@@ -182,10 +182,11 @@ int main (void)
 		{
 			if (line[len - 1] == '\n')
 			{
+/*
 				line[len - 1] = 0;
 				if ((*line != '#') && *line)
 				{
-					/* printf ("execing `%s'\n", line); */
+					// printf ("execing `%s'\n", line);
 					params = malloc (sizeof (char *) * 2);
 					params[0] = malloc (strlen (line) + 1);
 					strcpy (params[0], line);
@@ -193,6 +194,34 @@ int main (void)
 					thr_join (thr_detach (run2), 0);
 				}
 				len = 0;
+*/
+                line[len-- - 1] = 0;
+                for (i = space = 0, p_argc = 2; i < len; i++)
+                    if ((line[i] == ' ') && !space)
+                        space = 1;
+                    else if ((line[i] != ' ') && space)
+                    {   
+                        p_argc++;
+                        space = 0;
+                    }
+                if ((*line != '#') && *line)
+                {
+                    params = malloc (sizeof (char *) * p_argc);
+                    c = line;
+                    for (i = 0; i < p_argc - 1; i++)
+                    {
+                        for (len = 0; c[len] && (c[len] != ' '); len++) ;
+                        params[i] = malloc (len + 1);
+                        strlcpy (params[i], c, len + 1);
+                        c += len + 1;
+                    }
+                    params[p_argc] = NULL;
+                    if (!strcmp (params[0], "exit"))
+                        os_terminate (1);
+
+                    thr_join (thr_detach (run2), 0);
+                }
+                len = 0;
 			}
 		}
 		close (fd);

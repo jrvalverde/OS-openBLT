@@ -26,45 +26,74 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <errno.h>
-#include <elf.h>
+#include <dlfcn.h>
 #include <sys/stat.h>
 #include <blt/libsyms.h>
+#include "dl-int.h"
 
-weak_alias (_execve, execve)
+weak_alias (_dlopen, dlopen)
+weak_alias (_dlclose, dlclose)
+weak_alias (_dlerror, dlerror)
 
-int _execve (const char *path, char * const *argv, char * const *envp)
+static int error;
+
+void *_dlopen (const char *filename, int flag)
 {
-	char *ptr;
-	int fd, area, res, size;
-	unsigned int *magic;
+	char *c;
+	int i, size, fd, res, len;
 	struct stat buf;
+	lib_t *lib;
+	elf32_pgm_hdr_t *pgm;
 
-	res = _stat (path, &buf);
-	if (res)
+	if (_stat (filename, &buf))
 	{
 		errno = ENOENT;
-		return -1;
+		return NULL;
 	}
-	size = (buf.st_size & 0xfff) ? (buf.st_size & 0xfffff000) + 0x1000 :
-		buf.st_size;
-	fd = _open (path, O_RDONLY, 0);
+	size = buf.st_size;
+	size = (size & ~3) ? (size & ~3) + 0x1000 : size;
+	fd = _open (filename, O_RDONLY, 0);
 	if (fd < 0)
-	{
-		errno = ENOENT;
-		return -1;
-	}
-	area = area_create (size, 0, (void **) &ptr, 0);
-	res = _read (fd, ptr, size);
-	magic = (unsigned int *) ptr;
-	if (*magic != ELF_MAGIC)
-	{
-		errno = ENOEXEC;
-		return -1;
-	}
-	thr_spawn (area, 0x1000, argv, envp);
-	return -1;
+		return NULL;
+	lib = malloc (sizeof (lib_t));
+	lib->area = area_create (size, 0, (void **) &c, 0);
+	len = 0;
+	while ((res = read (fd, c + len, 0x2000)) > 0)
+		len += res;
+	close (fd);
+
+	lib->hdr = (elf32_hdr_t *) c;
+	pgm = (elf32_pgm_hdr_t *) ((unsigned int) lib->hdr + lib->hdr->e_phoff);
+	for (i = 0; i < lib->hdr->e_phnum; i++)
+		memmove ((void *) ((unsigned int) lib->hdr + pgm[i].p_vaddr),
+			(void *) ((unsigned int) lib->hdr + pgm[i].p_offset),
+			pgm[i].p_filesz);
+	lib->dynstr = elf_find_section_hdr (lib->hdr, ".dynstr");
+	lib->dynstr_data = elf_find_section_data (lib->hdr, ".dynstr");
+	lib->dynsym = elf_find_section_hdr (lib->hdr, ".dynsym");
+	lib->dynsym_data = elf_find_section_data (lib->hdr, ".dynsym");
+	//printf ("str %x sym %x\n", lib->dynstr_data, lib->dynsym_data);
+	//printf ("first is %s\n", lib->dynstr_data + lib->dynsym_data[1].st_name);
+	return lib;
+}
+
+int _dlclose (void *handle)
+{
+	lib_t *lib;
+
+	lib = handle;
+	area_destroy (lib->area);
+	free (handle);
+	return 0;
+}
+
+const char *_dlerror (void)
+{
+	return NULL;
 }
 
