@@ -46,7 +46,7 @@ struct __task_t {
 	struct __resource_t *waiting_on;
 	struct __task_t *queue_next;
 	struct __task_t *queue_prev;
-	uint32 status; /* status code for the task that has just been awakened */
+	int   status; /* status code for the task that has just been awakened */
 	uint32 wait_time; /* for timer queues */
 	
     char *iomap;
@@ -67,7 +67,8 @@ struct __task_t {
 
 task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel);
 void task_wait_on(task_t *task, resource_t *rsrc);
-uint32 wait_on(resource_t *rsrc);
+void task_wake(task_t *task, int status);
+int wait_on(resource_t *rsrc);
 
 void task_call(task_t *t);
 int thr_spawn (int area_id, int addr, char * const *argv, char * const *envp,

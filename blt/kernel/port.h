@@ -69,6 +69,7 @@ struct __port_t
     int refcount;          /* counts owner and any slaved ports */
 	int nowait;            /* do we block on an empty queue? */
 	int restrict;          /* is port public or private? */
+	resource_t *sendqueue;
 };
 
 

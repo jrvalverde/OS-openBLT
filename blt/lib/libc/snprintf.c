@@ -43,7 +43,7 @@ static char hexmap[] = {
 
 void va_snprintf(char *b, int l, char *fmt, va_list pvar) 
 {
-    int n,i;
+    int n,i,j;
     unsigned u;
     unsigned long long ull;
     char *t,d[10], mod_l, mod_ll;
@@ -87,8 +87,8 @@ void va_snprintf(char *b, int l, char *fmt, va_list pvar)
                         b[i] = hexmap[u & 0x0F];
                         u >>= 4;
                     }
-                    b+=8;
-                    l-=8;                
+					b+=8;
+					l-=8;
                 }
                 else if (mod_ll) { /* 16 digit, unsigned 64-bit hex integer */
                     if (l < 16) { l = 0; break; }

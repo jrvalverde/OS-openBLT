@@ -82,14 +82,23 @@ int right_destroy(int right_id);
 int right_revoke(int right_id, int thread_id); 
 int right_grant(int right_id, int thread_id);
 
-typedef union
-{
-	thread_info t_info;
-	sys_info s_info;
-} rsrc_info;
-
 /* look up a resource by name or id number and fill in information about it */
 int rsrc_find_id (rsrc_info *info, int rsrc_id, int rsrc_type);
 int rsrc_find_name (rsrc_info *info, const char *name, int rsrc_type);
- 
+
+/*
+ * the ubercall is for random things that are not compiled into the kernel
+ * by default, but might be useful for debugging, etc.  if you think you
+ * need to add a syscall temporarily in order to debug something, using
+ * this will save you some time, since you only have to edit two files
+ * instead of four.
+ *
+ * the request parameter is used to multiplex the call among many different
+ * purposes.  the range UBER_MIN_RESERVED to UBER_MAX_RESERVED is for
+ * temporary purposes that are not submitted to the repository.  request
+ * defines are in include/blt/os.h.
+ */
+
+int os_uber(unsigned int request, ...);
+
 #endif

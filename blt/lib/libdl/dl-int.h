@@ -34,11 +34,15 @@
 typedef struct __lib_t
 {
 	elf32_hdr_t *hdr;
-	elf32_sec_hdr_t *dynstr, *dynsym;
-	elf32_sym_t *dynsym_data;
-	char *dynstr_data;
-	int area, dynsym_size, dynstr_size;
+	elf32_sec_hdr_t *strtab, *symtab, *dynstr, *dynsym;
+	elf32_sym_t *symtab_data, *dynsym_data;
+	char *strtab_data, *dynstr_data;
+	int area, strtab_size, symtab_size, dynsym_size, dynstr_size;
+	struct __lib_t *next;
 } lib_t;
+
+unsigned int __dl_lookup_sym (lib_t *lib, const char *name);
+int __dl_patchup (lib_t *lib);
 
 #endif
 

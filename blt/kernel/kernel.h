@@ -57,12 +57,16 @@ void destroy_kspace(void);
 
 /* debugger functions */
 void kprintf_init(void);
-void kprintf(char *fmt, ...);
+void kprintf(const char *fmt, ...);
 char *kgetline(char *line, int maxlen);
 void krefresh(void);
 
-void preempt(task_t *t);
-void reschedule(task_t *t);
+#ifdef SERIAL
+void dprintf_init(void);
+void dprintf(const char *fmt, ...);
+#endif
+
+void preempt(task_t *t, int status);
 void swtch(void);
 
 

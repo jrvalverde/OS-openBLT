@@ -32,14 +32,16 @@
 #include <blt/libsyms.h>
 #include "malloc.h"
 
+weak_alias (_sbrk, sbrk)
 weak_alias (_malloc, malloc)
 weak_alias (_free, free)
 weak_alias (_realloc, realloc)
 
 static unsigned int __sbrk_max;
 static unsigned int __sbrk_cur;
+static int sem_malloc;
 
-void *sbrk(int size)
+void *_sbrk(int size)
 {
     if(size < 0 ){
         __sbrk_cur -= size;
@@ -56,8 +58,6 @@ void *sbrk(int size)
 
     return (void *) __sbrk_cur;
 }
-
-int sem_malloc = 0;
 
 void *_malloc(size_t size)
 {
@@ -96,18 +96,18 @@ void * _default_morecore(long size)
 }
 
 void __libc_init_memory(unsigned int top_of_binary,
-                        unsigned int start_bss)
+                        unsigned int start_bss, unsigned int bss_length)
 {
     char m[80];
+	int i;
     unsigned char *x = (unsigned char *) start_bss;
     unsigned int tob = (top_of_binary/4096+2)*4096;
     os_brk(tob);
 
     sem_malloc = sem_create(1);
     
-    while(x <= ((unsigned char *) top_of_binary)) {
-        *x = 0;
-        x++;
-    }
+	for (i = 0; i < bss_length; i++)
+		x[i] = 0;
+
     __sbrk_max = __sbrk_cur  = tob;
 }

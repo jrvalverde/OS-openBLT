@@ -99,7 +99,7 @@ int main (void)
 	void *ptr;
 	boot_dir *dir;
 
-	if (!(boot = area_clone (2, 0, (void **) &dir, 0)))
+	if (!(boot = area_clone (3, 0, (void **) &dir, 0)))
 	{
 		os_console ("no uberarea; giving up");
 		os_debug ();
@@ -163,6 +163,7 @@ int main (void)
 	}
 
 	/* say hello */
+	__libc_init_fdl ();
 	__libc_init_console ();
 	__libc_init_vfs ();
 	printf (copyright);

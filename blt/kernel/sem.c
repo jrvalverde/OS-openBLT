@@ -38,13 +38,20 @@ int sem_create(int count)
     return s->rsrc.id;
 }
 
-int sem_destroy(int sem)
+int sem_destroy(int id)
 {
-	return -1;
+    sem_t *s;
+    if(!(s = rsrc_find_sem(id))) {
+        return ERR_RESOURCE;
+    }
+	rsrc_release(&s->rsrc);
+	kfree(sem_t,s);
+	return ERR_NONE;
 }
 
 int sem_acquire(int id) 
 {
+	int status;
     sem_t *s;
     
     if(!(s = rsrc_find_sem(id))) {
@@ -55,7 +62,7 @@ int sem_acquire(int id)
         s->count--;
     } else {
         s->count--;
-		wait_on((resource_t *) s); /* XXX handle status */
+		if(status = wait_on(&s->rsrc)) return status;
     }
     return ERR_NONE;
 }
@@ -72,8 +79,8 @@ int sem_release(int id)
 
     s->count++;
 	
-    if(t = rsrc_dequeue((resource_t*)s)){
-		preempt(t);
+    if(t = rsrc_dequeue(&s->rsrc)){
+		preempt(t,ERR_NONE);
     }
 
     return ERR_NONE;

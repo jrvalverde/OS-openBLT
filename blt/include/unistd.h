@@ -29,6 +29,8 @@
 #ifndef _UNISTD_H_
 #define _UNISTD_H_
 
+#include <blt/types.h>
+
 struct stat;
 
 ssize_t _read (int fd, void *buf, size_t count);
@@ -43,6 +45,9 @@ int stat (const char *filename, struct stat *buf);
 
 int _execve (const char *path, char * const *argv, char * const *envp);
 int execve (const char *path, char * const *argv, char * const *envp);
+
+void *_sbrk (int diff);
+void *sbrk (int diff);
 
 #endif
 

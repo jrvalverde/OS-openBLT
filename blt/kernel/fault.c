@@ -149,7 +149,7 @@ void irq_dispatch(regs r, uint32 number)
     mask_irq(number);    
     if(irq_task_map[number]){
         if(irq_task_map[number]->flags == tSLEEP_IRQ){
-            preempt(irq_task_map[number]);            
+            preempt(irq_task_map[number],ERR_NONE);            
         }
     }    
 }

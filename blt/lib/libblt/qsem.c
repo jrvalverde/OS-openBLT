@@ -37,8 +37,13 @@ qsem_t *qsem_create (int count)
 	qsem_t *s;
 
 	s = (qsem_t *) malloc (sizeof (qsem_t));
+#ifdef I386
+	s->mutex = sem_create (count);
+	s->count = 0;
+#else
 	s->mutex = sem_create (0);
 	s->count = count;
+#endif
 	return s;
 }
 
@@ -50,13 +55,23 @@ void qsem_destroy (qsem_t *s)
 
 void qsem_acquire (qsem_t *s)
 {
+#ifdef I386
+	/* no atomic_add() in i386 */
+	sem_acquire(s->mutex);
+#else
 	if (atomic_add (&s->count, -1) <= 0)
 		sem_acquire (s->mutex);
+#endif
 }
 
 void qsem_release (qsem_t *s)
 {
+#ifdef I386
+	/* no atomic_add() in i386 */
+	sem_release(s->mutex);
+#else
 	if (atomic_add (&s->count, 1) < 0)
 		sem_release (s->mutex);
+#endif
 }
 

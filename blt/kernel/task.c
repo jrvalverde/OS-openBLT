@@ -34,7 +34,13 @@ extern char *gdt;
 void thread_bootstrap(void);
 void kthread_bootstrap(void);
 
-uint32 wait_on(resource_t *rsrc)
+void task_wake(task_t *task, int status)
+{
+	task->status = status;
+	rsrc_enqueue(run_queue, task);
+}
+
+int wait_on(resource_t *rsrc)
 {
 	task_t *task = current;
 	task->status = 0;

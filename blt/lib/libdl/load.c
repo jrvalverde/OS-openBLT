@@ -40,16 +40,61 @@ weak_alias (_dlopen, dlopen)
 weak_alias (_dlclose, dlclose)
 weak_alias (_dlerror, dlerror)
 
-static int error;
+const char *__dl_error = NULL;
+static volatile char initialised = 0;
+lib_t *file;
 
+/*
+ * Initialise the list of loaded images with our binary.
+ *
+ * XXX this will break when the executable is at least partially
+ * dynamically linked.
+ */
+static void _init (void)
+{
+	initialised = 1;
+	file = malloc (sizeof (lib_t));
+	file->hdr = (elf32_hdr_t *) 0x1000;
+	file->strtab = elf_find_section_hdr (file->hdr, ".strtab");
+	file->strtab_data = elf_find_section_data (file->hdr, ".strtab");
+	file->strtab_size = elf_section_size (file->hdr, ".strtab");
+	file->symtab = elf_find_section_hdr (file->hdr, ".symtab");
+	file->symtab_data = elf_find_section_data (file->hdr, ".symtab");
+	file->symtab_size = elf_section_size (file->hdr, ".symtab");
+	file->dynstr = elf_find_section_hdr (file->hdr, ".dynstr");
+	file->dynstr_data = elf_find_section_data (file->hdr, ".dynstr");
+	file->dynstr_size = elf_section_size (file->hdr, ".dynstr");
+	file->dynsym = elf_find_section_hdr (file->hdr, ".dynsym");
+	file->dynsym_data = elf_find_section_data (file->hdr, ".dynsym");
+	file->dynsym_size = elf_section_size (file->hdr, ".dynsym");
+	file->next = NULL;
+}
+
+/*
+ * Loading is not completely straightforward.  There is only one hack here,
+ * in that we guess that we will only need one page more memory than the
+ * size of the library.  This seems to work on all libraries I can get my
+ * hands on (both OpenBLT and Linux shared libraries).
+ *
+ * The memmove loop may look like a hack because you might think I'm not
+ * completely parsing the program headers.  It's not because file offsets
+ * and virtual addresses in an ELF file are equal, modulo 4k or larger
+ * powers of two.  Read page 2-7 of the ELF specification for more
+ * information.
+ */
 void *_dlopen (const char *filename, int flag)
 {
-	char *c;
+	char *c, debug[32];
 	int i, size, fd, res, len;
 	struct stat buf;
-	lib_t *lib;
+	lib_t *lib, *p;
 	elf32_pgm_hdr_t *pgm;
+	int (*fn)(void);
 
+	if (!initialised)
+		_init ();
+
+	__dl_error = NULL;
 	if (_stat (filename, &buf))
 	{
 		errno = ENOENT;
@@ -69,24 +114,64 @@ void *_dlopen (const char *filename, int flag)
 
 	lib->hdr = (elf32_hdr_t *) c;
 	pgm = (elf32_pgm_hdr_t *) ((unsigned int) lib->hdr + lib->hdr->e_phoff);
-	for (i = 0; i < lib->hdr->e_phnum; i++)
+	for (i = lib->hdr->e_phnum - 1; i >= 0; i--)
 		memmove ((void *) ((unsigned int) lib->hdr + pgm[i].p_vaddr),
 			(void *) ((unsigned int) lib->hdr + pgm[i].p_offset),
 			pgm[i].p_filesz);
+	lib->strtab = elf_find_section_hdr (lib->hdr, ".strtab");
+	lib->strtab_data = elf_find_section_data (lib->hdr, ".strtab");
+	lib->strtab_size = elf_section_size (lib->hdr, ".strtab");
+	lib->symtab = elf_find_section_hdr (lib->hdr, ".symtab");
+	lib->symtab_data = elf_find_section_data (lib->hdr, ".symtab");
+	lib->symtab_size = elf_section_size (lib->hdr, ".symtab");
 	lib->dynstr = elf_find_section_hdr (lib->hdr, ".dynstr");
 	lib->dynstr_data = elf_find_section_data (lib->hdr, ".dynstr");
+	lib->dynstr_size = elf_section_size (file->hdr, ".dynstr");
 	lib->dynsym = elf_find_section_hdr (lib->hdr, ".dynsym");
 	lib->dynsym_data = elf_find_section_data (lib->hdr, ".dynsym");
-	//printf ("str %x sym %x\n", lib->dynstr_data, lib->dynsym_data);
-	//printf ("first is %s\n", lib->dynstr_data + lib->dynsym_data[1].st_name);
+	lib->dynsym_size = elf_section_size (file->hdr, ".dynsym");
+
+	if (__dl_patchup (lib))
+	{
+		area_destroy (lib->area);
+		free (lib);
+		return NULL;
+	}
+	if (fn = (int (*)(void)) (__dl_lookup_sym (lib, "_init") +
+			(unsigned int) lib->hdr))
+		res = (*fn) ();
+	if ((flag & ~RTLD_GLOBAL) || res)
+	{
+		p = file;
+		while (p->next != NULL)
+			p = p->next;
+		p->next = lib;
+		lib->next = NULL;
+	}
+	else
+		lib->next = NULL;
 	return lib;
 }
 
 int _dlclose (void *handle)
 {
-	lib_t *lib;
+	lib_t *lib, *p;
+	void (*fn)(void);
 
 	lib = handle;
+	if (file == lib)
+		file = file->next;
+	else
+	{
+		p = file;
+		while ((p->next != lib) && (p->next != NULL))
+			p = p->next;
+		if (p->next != NULL)
+			p->next = lib->next;
+	}
+	if (fn = (void (*)(void)) (__dl_lookup_sym (lib, "_fini") +
+			(unsigned int) lib->hdr))
+		(*fn) ();
 	area_destroy (lib->area);
 	free (handle);
 	return 0;
@@ -94,6 +179,6 @@ int _dlclose (void *handle)
 
 const char *_dlerror (void)
 {
-	return NULL;
+	return __dl_error;
 }
 

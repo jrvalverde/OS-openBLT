@@ -26,57 +26,50 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include <string.h>
-#include <blt/os.h>
-#include "aspace.h"
-#include "kernel.h"
-#include "thread.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <blt/syscall.h>
+#include <blt/namer.h>
 
-int thr_detach (unsigned int eip)
+int main (int argc, char **argv)
 {
-	int i, clone;
-	void *ptr, *phys, *src, *dst;
-	aspace_t *a;
-	task_t *t;
-	area_t *text, *orig_heap;
+	char *text;
+	int i, nh, loc_port, rem_port;
+	msg_hdr_t mh;
 
-	a = aspace_create ();
-	text = rsrc_find_area (current->text_area);
-	ptr = kgetpages2 (text->length, 3, (uint32 *) &phys);
-	for (i = 0; i < text->length * 0x1000; i++)
-		*((char *) ptr + i) = *((char *) 0x1000 + i);
-
-	t = new_thread (a, eip, 0);
-	//t->rsrc.owner = current;
-	t->text_area = area_create (a, text->length * 0x1000, 0x1000, &phys,
-		0x1010);
-	//a->heap_id = area_create (a, 0x2000, 0x1000 + text->length * 0x1000,
-	//	&ptr, 0);
-	orig_heap = rsrc_find_area (current->addr->heap_id);
-	a->heap_id = area_create (a, orig_heap->length * 0x1000, 0x1000 +
-		text->length * 0x1000, &ptr, 0);
-	clone = area_clone (current->addr, a->heap_id, 0, &dst, 0);
-	for (i = 0; i < orig_heap->length * 0x1000; i++)
-		*((char *) dst + i) = *((char *) (orig_heap->virt_addr * 0x1000) + i);
-	area_destroy (a, clone);
-
-	strlcpy (t->rsrc.name, current->rsrc.name, sizeof (t->rsrc.name));
-	strlcat (t->rsrc.name, "+", sizeof (t->rsrc.name));
-
-	rsrc_set_owner (&a->rsrc, t);
-	rsrc_set_owner (&t->rsrc, t);
-	return t->rsrc.id;
-}
-
-int thr_join (int thr_id, int options)
-{
-	task_t *task = rsrc_find_task(thr_id);
-	
-	if(task) {
-		wait_on((resource_t *)task);
-		return ERR_NONE;
-	} else {
-		return ERR_RESOURCE;
+	__libc_init_console ();
+	if (argc < 3)
+	{
+		printf ("tell: syntax: tell [server] [message]\n");
+		return 0;
 	}
+	text = malloc (256);
+	strlcpy (text, argv[1], 256);
+	strlcat (text, ":tell", 256);
+
+	nh = namer_newhandle ();
+	rem_port = namer_find (nh, text);
+	if (!rem_port)
+	{
+		printf ("tell: no such server or server not using tell\n");
+		return 0;
+	}
+	loc_port = port_create (rem_port);
+	strlcpy (text, argv[2], 256);
+	for (i = 3; i < argc; i++)
+	{
+		strlcat (text, " ", 256);
+		strlcat (text, argv[i], 256);
+	}
+
+	mh.src = loc_port;
+	mh.dst = rem_port;
+	mh.data = text;
+	mh.size = strlen (text) + 1;
+	port_send (&mh);
+	mh.src = rem_port;
+	mh.dst = loc_port;
+	port_recv (&mh);
+	return 0;
 }
 

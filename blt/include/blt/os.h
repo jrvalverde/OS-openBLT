@@ -98,6 +98,21 @@ typedef struct
 	char kernel_build_time[BLT_MAX_NAME_LENGTH];
 } sys_info;
 
+typedef struct
+{
+	int rid;
+	union
+	{
+		thread_info t_info;
+		sys_info s_info;
+	} r_un;
+} rsrc_info;
+		
+		
+#define UBER_NULL_REQUEST    0
+#define UBER_MIN_RESERVED    0xf0000000
+#define UBER_MAX_RESERVED    0xffffffff
+
 #endif
 
 #endif
