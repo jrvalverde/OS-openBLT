@@ -46,7 +46,7 @@ void __tell_impl (void)
 	int port, nh, len;
 	msg_hdr_t mh;
 
-	port = port_create (0);
+	port = port_create (0, "tell_listen_port");
 	buf = malloc (len = TELL_MAX_LEN);
 	strlcpy (buf, name, len);
 	strlcat (buf, ":tell", len);

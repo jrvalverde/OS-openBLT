@@ -39,10 +39,10 @@ qsem_t *qsem_create (int count)
 
 	s = (qsem_t *) malloc (sizeof (qsem_t));
 #ifdef I386
-	s->mutex = sem_create (count);
+	s->mutex = sem_create (count, "qsem_mutex");
 	s->count = 0;
 #else
-	s->mutex = sem_create (0);
+	s->mutex = sem_create (0, "qsem_mutex");
 	s->count = count;
 #endif
 	return s;

@@ -36,11 +36,11 @@
 #include "port.h"
 #include "rights.h"
 #include "resource.h"
+#include "list.h"
+
 typedef struct { uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax; } regs;
 
-
-extern resnode_t *resource_list;
-
+extern list_t resource_list;
 
 #define RMAX 1024
 
@@ -49,18 +49,29 @@ static char *tstate[] =
 
 uint32 readnum(const char *s);
 
+char *taskstate(task_t *task)
+{
+	static char ts[60];
+	if(task->waiting_on){
+		snprintf(ts,60,"Waiting on %s #%d \"%s\"",
+				 rsrc_typename(task->waiting_on), task->waiting_on->id,
+				 task->waiting_on->name);
+		return ts;
+	} else {
+		return "Running";
+	}
+}
+
 void printres(resource_t *r)
 {
     switch(r->type){
     case RSRC_PORT:
-        kprintf("    PORT %U: (slave %U) (size %U)",r->id,
-		((port_t*)r)->slaved, ((port_t*)r)->msgcount);
+        kprintf("    PORT %U: (slave=%d) (size=%d) \"%s\"",r->id,
+		((port_t*)r)->slaved, ((port_t*)r)->msgcount,r->name);
         break;
     case RSRC_TASK:
-        kprintf("    TASK %U: (state %s/%U) '%s'",r->id,
-		tstate[((task_t*)r)->flags],
-                (((task_t*)r)->waiting_on?((task_t*)r)->waiting_on->id:0), 
-				((task_t*)r)->rsrc.name);
+        kprintf("    TASK %U: \"%s\"",r->id,r->name);		
+		kprintf("             : %s",taskstate((task_t*)r));
         break;
     case RSRC_ASPACE:
         kprintf("  ASPACE %U: @ %x",r->id,((aspace_t*)r)->pdir[0]&0xFFFFF000);
@@ -69,23 +80,28 @@ void printres(resource_t *r)
         kprintf("   RIGHT %U: %x",r->id,((right_t*)r)->flags);
         break;
     case RSRC_SEM:
-        kprintf("     SEM %U: (count %U)",r->id,((sem_t*)r)->count);
+        kprintf("     SEM %U: (count=%d) \"%s\"",
+				r->id,((sem_t*)r)->count,r->name);
         break;
     case RSRC_AREA:
-        kprintf("    AREA %U: virt %x size %x pgroup %x",r->id,
+        kprintf("    AREA %U: virt %x size %x pgroup %x (refcnt=%d)",r->id,
                 ((area_t*)r)->virt_addr * 0x1000, ((area_t*)r)->length * 0x1000,
-                ((area_t*)r)->pgroup);
+                ((area_t*)r)->pgroup, ((area_t*)r)->pgroup->refcount);
 		break;
 	case RSRC_QUEUE:
-		kprintf("   QUEUE %U: (count %U) '%s'",r->id,r->queue_count,r->name);
+		kprintf("   QUEUE %U: (count=%d) \"%s\"",r->id,r->queue.count,r->name);
+		break;
+	case RSRC_TEAM:
+		kprintf("    TEAM %U: \"%s\"",r->id,r->name);
 		break;
     }
 }
 
-void dumprsrc(resnode_t *rn)
+void dumprsrc(list_t *rl)
 {
-	while(rn) {
-		printres(rn->resource);
+	node_t *rn = rl->next;
+	while(rn != (node_t*) rl) {
+		printres((resource_t*)rn->data);
 		rn = rn->next;
 	}
 }
@@ -93,16 +109,17 @@ void dumprsrc(resnode_t *rn)
 void dumponersrc(const char *num)
 {
 	int n;
-	resnode_t *rn;
+	node_t *rn;
 
 	n = readnum (num);
-	rn = resource_list;
-	while(rn) {
-		if (rn->resource->id == n) {
-			printres(rn->resource);
+	rn = resource_list.next;
+	while(rn != (node_t*) &resource_list) {
+		if (((resource_t*)rn->data)->id == n) {
+			printres((resource_t*) rn->data);
 			break;
+		} else {
+			rn = rn->next;
 		}
-		else rn = rn->next;
 	}
 }
 
@@ -111,21 +128,23 @@ void dumptasks(void)
     int i,j,n;
     task_t *t;
     aspace_t *a;
-    
-    kprintf("Task Prnt Addr State Wait esp      scount   Name");
+    team_t *team;
+	
+    kprintf("Task Team Aspc State Wait esp      scount   Name");
     kprintf("---- ---- ---- ----- ---- -------- -------- --------------------------------");
 
     for(i=1;i<RMAX;i++){
         if((t = rsrc_find_task(i))){
-            a = t->addr;
+            team = t->rsrc.owner;
+            a = team->aspace;
             {
-                area_t *area = rsrc_find_area(t->addr->heap_id);
+                area_t *area = rsrc_find_area(t->rsrc.owner->heap_id);
                 if(area) j = area->virt_addr + area->length;
                 else j =0;
             }
-            
+			
             kprintf("%U %U %U %s %U %x %x %s",
-                    i,t->rsrc.owner->rsrc.id,t->addr->rsrc.id,tstate[t->flags],
+                    i,team->rsrc.id,a->rsrc.id,tstate[t->flags],
 			(t->waiting_on ? t->waiting_on->id : 0),t->esp /*j*4096*/,t->scount,
 					t->rsrc.name);
             
@@ -133,35 +152,6 @@ void dumptasks(void)
     }
 }
 
-void dumptask(int id)
-{
-    int i,j,n;
-    task_t *t;
-    aspace_t *a;
-
-	if(!(t = rsrc_find_task(id))) {
-		kprintf("no such task %d",id);
-		return;
-	}
-	
-    
-    kprintf("Task Prnt Addr State Wait brk      Name");
-    kprintf("---- ---- ---- ----- ---- -------- --------------------------------");
-
-	a = t->addr;
-    {
-        area_t *area = rsrc_find_area(t->addr->heap_id);
-        if(area) j = area->virt_addr + area->length;
-        else j = 0;
-    }	
-	kprintf("%U %U %U %s %U %x %s",
-	id,t->rsrc.owner->rsrc.id,t->addr->rsrc.id,tstate[t->flags],
-	(t->waiting_on ? t->waiting_on->id : 0),j*4096,t->rsrc.name);
-	
-
-	kprintf("");
-	dumprsrc(t->resources);
-}
 
 void dumpports()
 {
@@ -253,7 +243,8 @@ extern aspace_t *flat;
 
 void dumpaddr(int id)
 {
-    anode_t *an;
+    node_t *an;
+	area_t *area;
 	aspace_t *a = rsrc_find_aspace(id);
 	
 	if(id == 0){
@@ -267,12 +258,14 @@ void dumpaddr(int id)
 	}
 	
 	aspace_print(a);
-    for(an = a->areas; an; an = an->next){
-        kprintf("area %U virtaddr %x size %x pgroup %x",
-                an->area->rsrc.id, 
-                an->area->virt_addr * 0x1000, 
-                an->area->length * 0x1000, 
-                an->area->pgroup);
+    for(an = a->areas.next; an != (node_t *) &a->areas; an = an->next){
+		area = (area_t*) an->data;
+		
+        kprintf("area %U virtaddr %x size %x pgroup %x (refcnt=%d)",
+                area->rsrc.id, 
+                area->virt_addr * 0x1000, 
+                area->length * 0x1000, 
+                area->pgroup, area->pgroup->refcount);
     }
     	
 }
@@ -280,14 +273,47 @@ void dumpaddr(int id)
 void memory_status(void);
 void print_regs(regs *r, uint32 eip, uint32 cs, uint32 eflags);
 
+void dumpteams(void)
+{
+	node_t *rn = resource_list.next;
+	resource_t *rsrc;
+	
+	while(rn != (node_t*) &resource_list) {
+		rsrc = (resource_t*)rn->data;
+		if(rsrc->type == RSRC_TEAM){
+			kprintf("Team %d (%s)",rsrc->id,rsrc->name);
+		}
+		rn = rn->next;
+	}	
+}
 
-void dumpqueue(int n)
+void dumpteam(int id)
+{
+	node_t *rn;
+	
+	team_t *team = rsrc_find_team(id);
+	if(team){
+		kprintf("team %d (%s)...",team->rsrc.id,team->rsrc.name);
+		rn = team->resources.next;
+		while(rn != (node_t*) &team->resources) {
+			printres((resource_t*) rn->data);
+			rn = rn->next;
+		}	
+	} else {
+		kprintf("no such team %d",id);
+	}
+	
+}
+
+void dumpqueue(int num)
 {
 	resource_t *rsrc;
+	node_t *n;
+	
 	int i;
 	
 	for(i=1;i<RSRC_MAX;i++){
-		if(rsrc = rsrc_find(i,n)){
+		if(rsrc = rsrc_find(i,num)){
 			task_t *task;
 			kprintf("resource: %d \"%s\"",rsrc->id,rsrc->name);
 			kprintf("type    : %s",rsrc_typename(rsrc));
@@ -295,10 +321,11 @@ void dumpqueue(int n)
 				kprintf("owner   : %d \"%s\"",
 						rsrc->owner->rsrc.id,rsrc->owner->rsrc.name);
 			}			
-			kprintf("count   : %d",rsrc->queue_count);
+			kprintf("count   : %d",rsrc->queue.count);
 
-			for(task = rsrc->queue_head; task; task = task->queue_next){
-				kprintf("queue   : task %d \"%s\"",task->rsrc.id,task->rsrc.name);
+			for(n = rsrc->queue.next; n != (node_t*) &rsrc->queue; n = n->next){
+				kprintf("queue   : task %d \"%s\"",((task_t*)n->data)->rsrc.id,
+						((task_t*)n->data)->rsrc.name);
 			}
 			return;
 		}
@@ -345,14 +372,53 @@ void checksum (char *range)
 static void dumppgroup(uint32 addr)
 {
 	pagegroup_t *pg = (pagegroup_t*) addr;
-	anode_t *an = pg->areas;
-	kprintf("pgroup @ 0x%x",addr);
-	while(an){
-		kprintf("  area @ 0x%x (id %d) (owner %d)",an->area,an->area->rsrc.id,
-				an->area->rsrc.owner->rsrc.id);
+	phys_page_t *pp = pg->pages;
+	node_t *an = pg->areas.next;
+	int size = pg->size;
+	
+	kprintf("pgroup @ 0x%x rc=%d sz=%d",addr,pg->refcount,pg->size);
+	while(an != (node_t*) &pg->areas){
+		kprintf("  area @ 0x%x (id %d) (owner #%d \"%s\")",
+				an->data,((area_t*)an->data)->rsrc.id,
+				((area_t*)an->data)->rsrc.owner->rsrc.id,
+				((area_t*)an->data)->rsrc.owner->rsrc.name);
 		an = an->next;
 	}
+	while(size > 0){
+		kprintf("  pages %U %U %U %U %U %U",
+				pp->addr[0],pp->addr[1],pp->addr[2],
+				pp->addr[3],pp->addr[4],pp->addr[5]);
+		size -= 6;
+		pp = pp->next;
+	}
+}
+
+int findpage(uint32 n)
+{
+	node_t *rn = resource_list.next;
+	resource_t *rsrc;
+	int count = 0;
+	int size,i;
 	
+	while(rn != (node_t*) &resource_list) {
+		rsrc = (resource_t*)rn->data;
+		if(rsrc->type == RSRC_AREA){
+			area_t *area = (area_t*) rsrc;
+			phys_page_t *pp = area->pgroup->pages;
+			size = area->pgroup->size;
+			while(size > 0){
+				for(i=0;i<6;i++,size--){
+					if(pp->addr[i] == n){
+						kprintf("area %U pgroup %x slot %d",rsrc->id,area->pgroup,i);
+						count ++;
+					}
+				}
+				pp = pp->next;
+			}
+		}
+		rn = rn->next;
+	}	
+	return count;
 }
 
 static char linebuf[80];
@@ -369,10 +435,9 @@ void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
 
 		if(!strncmp(line,"pgroup ",7)) { dumppgroup(readnum(line+7)); continue; }
         if(!strncmp(line,"resource ", 9)) { dumponersrc(line+9); continue; }
-        if(!strcmp(line,"resources")) { dumprsrc(resource_list); continue; }
+        if(!strcmp(line,"resources")) { dumprsrc(&resource_list); continue; }
 		if(!strncmp(line,"queue ",6)) { dumpqueue(readnum(line+6)); continue; }
         if(!strcmp(line,"tasks")) { dumptasks(); continue; }
-        if(!strncmp(line,"task ",5)) { dumptask(readnum(line+5)); continue; }
         if(!strcmp(line,"ports")) { dumpports(); continue; }
         if(!strcmp(line,"memory")) { memory_status(); continue; }
         if(!strcmp(line,"trace")) { trace(r->ebp,eip); continue; }
@@ -381,6 +446,10 @@ void k_debugger(regs *r,uint32 eip, uint32 cs, uint32 eflags)
         if(!strncmp(line,"aspace ",7)) { dumpaddr(readnum(line+7)); continue; }
         if(!strcmp(line,"reboot")) { reboot(); }
         if(!strncmp(line,"checksum ",9)) { checksum(line+9); continue; }
+		if(!strncmp(line,"team ",5)) { dumpteam(readnum(line+5)); continue; }
+		if(!strncmp(line,"find ",5)) { findpage(readnum(line+5)); continue; }
+		if(!strcmp(line,"teams")) { dumpteams(); continue; }
+		
         if(!strcmp(line,"exit")) break;
         if(!strcmp(line,"x")) break;
         if(!strcmp(line,"c")) break;

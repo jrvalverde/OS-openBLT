@@ -45,8 +45,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <unistd.h>
 #include <boot.h>
 #include <blt/syscall.h>
 
@@ -54,6 +56,9 @@ static char *copyright = "\
 OpenBLT Release I (built " __DATE__ ", " __TIME__ ")
     Copyright (c) 1998-1999 The OpenBLT Dev Team.  All rights reserved.
 \n";
+
+void __libc_init_fdl (void), __libc_init_console (void),
+	__libc_init_vfs (void);
 
 int boot_get_num (boot_dir *dir, const char *name)
 {
@@ -72,18 +77,22 @@ char *boot_get_data (boot_dir *dir, int num)
 
 int main (void)
 {
-	int area,sarea;
-	char *c, *rcboot, filenum, *line, *boot_servers, **params;
-	int i, j, space, p_argc, boot, fd, thr_id, res, len, total, prog;
+	int area, sarea;
+	char *c, *rcboot, *line, *boot_servers, **params;
+	int i, space, p_argc, boot, fd, len, total, prog, filenum;
 	void *ptr;
 	boot_dir *dir;
 
 	
+	line = malloc (256);
+	boot_servers = malloc (256);
+
 	if (!(boot = area_clone (3, 0, (void **) &dir, 0)))
 	{
 		os_console ("no uberarea; giving up");
 		os_debug ();
 		for (;;) ; /* fatal */
+		return 0;
 	}
 	else if ((filenum = boot_get_num (dir, "rc.boot")) < 0)
 	{
@@ -92,8 +101,6 @@ int main (void)
 	}
 	else
 	{
-		line = malloc (256);
-		boot_servers = malloc (256);
         *line = *boot_servers = len = total = 0;
 		rcboot = boot_get_data (dir, filenum);
 

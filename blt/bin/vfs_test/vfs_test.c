@@ -115,21 +115,6 @@ int main (void)
 	void *ptr;
 	int (*fn1)(char *), (*fn2)(void);
 
-	__libc_init_console ();
-	__libc_init_vfs ();
-
-	sem = qsem_create (0);
-	sem = qsem_create (0);
-	i = sem_create (0);
-	printf ("sem_ is %d\n", i);
-	printf ("-- %d %d\n", sem->count, sem->mutex);
-	qsem_acquire (sem);
-	//sem_acquire (i);
-	printf ("-- %d %d\n", sem->count, sem->mutex);
-	qsem_acquire (sem);
-	//sem_acquire (i);
-	printf ("-- %d %d\n", sem->count, sem->mutex);
-	printf ("hello from vfs_test\n");
 /*
 	dir1 = opendir ("/");
 	while ((dirent = readdir (dir1)) != NULL)
@@ -144,13 +129,22 @@ int main (void)
 		printf ("readdir says %d %s\n", dirent->d_fileno, dirent->d_name);
 	closedir (dir1);
 */
-/*
 	i = open ("/boot/rc.boot", O_RDONLY, 0);
-	//i = open ("/boot/text", O_RDONLY, 0);
+	printf ("got fd %d\n", i);
+/*
 	if (i >= 0)
 		while (read (i, &c, 1))
 			printf ("%c", c);
 */
+	close (i);
+	i = open ("/boot/rc.boot", O_RDONLY, 0);
+	printf ("got fd %d\n", i);
+/*
+	if (i >= 0)
+		while (read (i, &c, 1))
+			printf ("%c", c);
+*/
+	close (i);
 /*
 	dir1 = opendir ("/portal");
 	if (dir1 != NULL)
@@ -190,7 +184,6 @@ int main (void)
 		printf ("error: %s\n", dlerror ());
 */
 
-	__libc_fini_vfs ();
 	return 0;
 }
 

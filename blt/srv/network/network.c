@@ -210,12 +210,8 @@ int network_main (volatile int *ready)
 	int nh, len;
 	msg_hdr_t mh;
 
-	__libc_init_fdl ();
-	__libc_init_console ();
-	__libc_init_vfs ();
-
-	ctl_port = port_create (0);
-	tell_port = port_create (0);
+	ctl_port = port_create (0, "network_ctl_port");
+	tell_port = port_create (0, "network_tell_port");
 	port_slave (ctl_port, tell_port);
 	nh = namer_newhandle ();
 	namer_register (nh, ctl_port, "network");

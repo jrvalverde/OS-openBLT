@@ -31,23 +31,32 @@
 
 #include <blt/types.h>
 
-struct stat;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-ssize_t _read (int fd, void *buf, size_t count);
-ssize_t read (int fd, void *buf, size_t count);
-ssize_t _write (int fd, const void *buf, size_t count);
-ssize_t write (int fd, const void *buf, size_t count);
-int _close (int fd);
-int close (int fd);
+	ssize_t _read (int fd, void *buf, size_t count);
+	ssize_t read (int fd, void *buf, size_t count);
+	ssize_t _write (int fd, const void *buf, size_t count);
+	ssize_t write (int fd, const void *buf, size_t count);
+	int _close (int fd);
+	int close (int fd);
+	
+	int _execve (const char *path, char * const *argv, char * const *envp);
+	int execve (const char *path, char * const *argv, char * const *envp);
+	
+	void *_sbrk (int diff);
+	void *sbrk (int diff);
+	
+	extern char *optarg;
+	extern int optind, optopt, opterr, optreset;
+	int _getopt (int argc, char * const *argv, const char *optstring);
+	int getopt (int argc, char * const *argv, const char *optstring);
+	
+#ifdef __cplusplus
+}
+#endif
 
-int _stat (const char *filename, struct stat *buf);
-int stat (const char *filename, struct stat *buf);
-
-int _execve (const char *path, char * const *argv, char * const *envp);
-int execve (const char *path, char * const *argv, char * const *envp);
-
-void *_sbrk (int diff);
-void *sbrk (int diff);
 
 #endif
 

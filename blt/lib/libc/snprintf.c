@@ -77,8 +77,19 @@ void va_snprintf(char *b, int l, char *fmt, va_list pvar)
                 *b++ = va_arg(pvar,char);
                 l--;                
                 break;
-                
-            case 'x':
+
+			case 'S': /* uint32 as a short ... */
+				if(l < 4) { l = 0; break; }
+				u = va_arg(pvar,unsigned int);
+				for(i=3;i>=0;i--){
+					b[i] = hexmap[u & 0x0F];
+					u >>= 4;
+				}
+				b+=4;
+				l-=4;
+				break;            
+   
+			case 'x':
 			case 'p':
                 if (!mod_ll) { /* 8 digit, unsigned 32-bit hex integer */
                     if(l < 8) { l = 0; break; }

@@ -104,10 +104,10 @@ void __libc_init_memory(unsigned int top_of_binary,
     unsigned int tob = (top_of_binary/4096+2)*4096;
     os_brk(tob);
 
-    sem_malloc = sem_create(1);
-    
 	for (i = 0; i < bss_length; i++)
 		x[i] = 0;
 
     __sbrk_max = __sbrk_cur  = tob;
+	
+    sem_malloc = sem_create(1,"libc_malloc_sem");
 }

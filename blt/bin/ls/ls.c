@@ -28,6 +28,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <dirent.h>
 
 static int dirent_compare (const void *a, const void *b)
@@ -42,11 +43,8 @@ int main (int argc, char **argv)
 {
 	char *path;
 	int i, j, k, l, maxlen, maxnum;
-	struct dirent *ent[32];
+	struct dirent *ent[128];
 	DIR *dir;
-
-	__libc_init_console ();
-	__libc_init_vfs ();
 
 	path = (argc == 1) ? "/" : argv[1];
 	i = maxlen = 0;

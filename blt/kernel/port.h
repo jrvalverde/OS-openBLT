@@ -73,7 +73,7 @@ struct __port_t
 };
 
 
-int port_create(int restrict);
+int port_create(int restrict, const char *name);
 int port_destroy(int port);
 uint32 port_option(uint32 port, uint32 opt, uint32 arg);
 int port_send(msg_hdr_t *mh);

@@ -9,5 +9,9 @@
 # /boot/tell network probe ne
 # /boot/tell network config ne0 ipv4 up 10.0.1.5 255.255.255.0
 
+# /boot/ide
+# /boot/tell vfs load ffs
+# /boot/mkdir /freebsd
+# /boot/tell vfs mount ffs /freebsd ide/0/0/1a
 /boot/bltsh
 

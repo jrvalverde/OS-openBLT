@@ -50,5 +50,20 @@ struct stat
 	uint32 st_gen;                 /* file generation number */
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int _stat (const char *path, struct stat *buf);
+int stat (const char *path, struct stat *buf);
+
+int _mkdir (const char *path, mode_t mode);
+int mkdir (const char *path, mode_t mode);
+
+#ifdef __cplusplus
+}
+#endif
+
+
 #endif
 

@@ -27,6 +27,7 @@
 */
 
 #include <stdio.h>
+#include <string.h>
 #include <dirent.h>
 #include "bootfs.h"
 #include "shm.h"
@@ -58,6 +59,7 @@ void shm_write_dir (struct ofile *ofile, int skip, int doff, int len,
 void shm_write (struct ofile *ofile, int skip, int doff, int len,
 	int *numbytes, int *more)
 {
+#if 0
 	char buf[256];
 	int i, res;
 	struct vnode *vnode;
@@ -78,6 +80,7 @@ void shm_write (struct ofile *ofile, int skip, int doff, int len,
 #ifdef SHM_DEBUG
 	printf ("shm_write: %x / %x %x %x %x %x\n", ofile->dataptr + doff,
 		*numbytes, i, *more, len, skip);
+#endif
 #endif
 }
 

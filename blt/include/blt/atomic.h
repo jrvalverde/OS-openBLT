@@ -29,7 +29,16 @@
 #ifndef __BLT_ATOMIC_H__
 #define __BLT_ATOMIC_H__
 
-long atomic_add (long *var, long amount);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	long atomic_add (long *var, long amount);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

@@ -50,7 +50,7 @@ void __libc_init_console_input ()
 	nh = namer_newhandle ();
 	input_remote_port = namer_find (nh, "console_input");
 	namer_delhandle (nh);
-	input_local_port = port_create (input_remote_port);
+	input_local_port = port_create (input_remote_port, "input_remote_port");
 	fd = _fdl_alloc_descriptor (&console_input_fdl_imp, NULL);
 	if (fd)
 		_printf ("__libc_init_input: console input not on fd 0\n");

@@ -35,19 +35,17 @@
 #include "task.h"
 #include "port.h"
 #include "sem.h"
+#include "team.h"
 
 #include <blt/types.h>
 #include <blt/error.h>
 
 void panic(char *reason);
 
-extern int kernel_timer;
-
-task_t *new_thread(aspace_t *a, uint32 ip, int kernel);
+task_t *new_thread(team_t *team, uint32 ip, int kernel);
 
 int brk(uint32 addr);
 
-extern task_t *kernel, *current;
 void destroy_kspace(void);
 
 /* debugger functions */
@@ -63,23 +61,15 @@ void dprintf(const char *fmt, ...);
 
 void preempt(task_t *t, int status);
 void swtch(void);
-
-
-/* XXX HACK */
-struct _ll
-{
-    struct _ll *next, *prev;
-    int when;
-    task_t *t;
-};
-
-extern struct _ll time_first;
-
 extern char *idt, *gdt;
 extern uint32 _cr3;
 
+extern int kernel_timer;
+
+extern task_t *current;
 extern resource_t *run_queue;
 extern resource_t *reaper_queue;
 extern resource_t *timer_queue;
+extern team_t     *kernel_team;
 
 #endif

@@ -25,9 +25,11 @@
 ** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
 #include "kernel.h"
 #include "memory.h"
 #include "resource.h"
+#include "team.h"
 
 typedef struct _rtab {
     resource_t *resource;
@@ -40,16 +42,18 @@ static rtab *rmap;
 static uint32 rmax = 0;
 static uint32 rfree = 0;
 
-resnode_t *resource_list = NULL;
+list_t resource_list;
 
 void rsrc_init(void *map, int size)
 {
     int i;
 
+	list_init(&resource_list);
+	
     null_resource.id = 0;
     null_resource.type = RSRC_NONE;
     null_resource.owner = NULL;
-    null_resource.rights = NULL;
+	list_init(&null_resource.rights);
     
     rfree = 1;    
     rmax = size / sizeof(rtab);
@@ -70,39 +74,11 @@ void *rsrc_find(int type, int id)
     }
 }
 
-void rsrc_set_owner(resource_t *r, task_t *owner) 
+void rsrc_set_owner(resource_t *r, team_t *owner) 
 {
-    resnode_t *rn;
-    
-    if(r->owner){
-            /* unchain it from the owner */
-        for(rn = r->owner->resources; rn; rn=rn->next){
-            if(rn->resource == r){
-                if(rn->prev) {
-                    rn->prev->next = rn->next;
-                } else {
-                    r->owner->resources = rn->next;
-                }
-                if(rn->next) {
-                    rn->next->prev = rn->prev;
-                }
-                kfree(resnode_t,rn);
-                break;
-            }
-        }		
-    }
-    
-    r->owner = owner;
-    
-    if(owner){
-        rn = (resnode_t *) kmalloc(resnode_t);
-        rn->resource = r;
-        rn->prev = NULL;
-        rn->next = owner->resources;
-        owner->resources = rn;	
-    }
+    if(r->owner) list_remove(&r->owner->resources, r);
+	if(r->owner = owner) list_add_tail(&owner->resources, r);
 }
-
 
 int rsrc_identify(uint32 id) 
 {
@@ -110,18 +86,17 @@ int rsrc_identify(uint32 id)
     return rmap[id].resource->owner->rsrc.id; 
 }
 
-int queue_create(const char *name)
+int queue_create(const char *name, team_t *team)
 {
 	resource_t *rsrc = (resource_t*) kmalloc(resource_t);
-	rsrc_bind(rsrc,RSRC_QUEUE,kernel);
+	rsrc_bind(rsrc,RSRC_QUEUE,team);
 	rsrc_set_name(rsrc,name);
 	return rsrc->id;
 }
 
-void rsrc_bind(resource_t *rsrc, rsrc_type type, task_t *owner)
+void rsrc_bind(resource_t *rsrc, rsrc_type type, team_t *owner)
 {
     uint32 id;
-    resnode_t *rn;
     
     if(rfree){
         id = rfree;
@@ -134,74 +109,32 @@ void rsrc_bind(resource_t *rsrc, rsrc_type type, task_t *owner)
     rsrc->id = id;
     rsrc->type = type;
     rsrc->owner = owner;
-    rsrc->rights = NULL;
 	rsrc->name[0] = 0;
-	rsrc->queue_head = NULL;
-	rsrc->queue_tail = NULL;
-	rsrc->queue_count = 0;
-	rsrc->lock = 0;
 	
-    if(owner){
-        rn = (resnode_t *) kmalloc(resnode_t);
-        rn->resource = rsrc;
-        rn->prev = NULL;
-        rn->next = owner->resources;
-		if(owner->resources) owner->resources->prev = rn;
-        owner->resources = rn;	
-    }
-    rn = (resnode_t *) kmalloc(resnode_t);
-    rn->resource = rsrc;
-    rn->prev = NULL;
-    rn->next = resource_list;
-	if(resource_list) resource_list->prev = rn;
-    resource_list = rn;
+	list_init(&rsrc->queue);
+	list_init(&rsrc->rights);
+	
+    if(owner) list_add_tail(&owner->resources, rsrc);
+	
+	list_add_tail(&resource_list, rsrc);
 }
 
 void rsrc_release(resource_t *r)
 {
     uint32 id = r->id;
-    resnode_t *rn;
-    
-	/* unchain it from the global pool */
-    for(rn = resource_list; rn; rn=rn->next){
-        if(rn->resource == r){
-            if(rn->prev) {
-                rn->prev->next = rn->next;
-            } else {
-                resource_list = rn->next;
-            }
-            if(rn->next) {
-                rn->next->prev = rn->prev;
-            }
-            kfree(resnode_t,rn);
-            break;
-        }
-    }
-    
-    if(r->owner){
-            /* unchain it from the owner */
-        for(rn = r->owner->resources; rn; rn=rn->next){
-            if(rn->resource == r){
-                if(rn->prev) {
-                    rn->prev->next = rn->next;
-                } else {
-                    r->owner->resources = rn->next;
-                }
-                if(rn->next) {
-                    rn->next->prev = rn->prev;
-                }
-                kfree(resnode_t,rn);
-                break;
-            }
-        }	
-    }
+    task_t *t;
 	
-	/* wait all blocking objects */
-	while(r->queue_head){
-		task_t *t = rsrc_dequeue(r);
+	/* unchain it from the owner */
+    if(r->owner) list_remove(&r->owner->resources, r);
+	
+	/* unchain it from the global pool */
+	list_remove(&resource_list, r);
+    
+	/* wake all blocking objects */
+	while((t = list_detach_head(&r->queue))) {
 		task_wake(t,ERR_RESOURCE);
 	}
-    
+	
     r->type = RSRC_NONE;
     r->id = 0;
 	rmap[id].resource = &null_resource;
@@ -225,79 +158,36 @@ void rsrc_set_name(resource_t *r, const char *name)
 
 void rsrc_enqueue_ordered(resource_t *rsrc, task_t *task, uint32 wake_time)
 {
-	task_t *t = rsrc->queue_head;
+/* XXX fixme*/
+	list_attach_tail(&rsrc->queue, &task->node);
 	task->wait_time = wake_time;
 	task->flags = tWAITING;
-	task->waiting_on = rsrc;
-	rsrc->queue_count++;
-	while(t){
-		if(wake_time < t->wait_time){
-			/* add before an item (possibly at head of list) */
-			task->queue_prev = t->queue_prev;
-			task->queue_next = t;
-			if(task->queue_prev) {
-				task->queue_prev->queue_next = task;
-			} else {
-				rsrc->queue_head = task;
-			}
-			t->queue_prev = task;
-			return;
-		}
-		if(!t->queue_next){
-			/* add after last item (tail of list) */
-			task->queue_prev = t;
-			task->queue_next = NULL;
-			t->queue_next = task;
-			rsrc->queue_tail = task;
-			return;
-		}
-		t = t->queue_next;
-	}
-	
-	/* add the only item */
-	rsrc->queue_tail = task;
-	rsrc->queue_head = task;
-	task->queue_prev = NULL;
-	task->queue_next = NULL;
+	task->waiting_on = rsrc;	
 }
 
 void rsrc_enqueue(resource_t *rsrc, task_t *task)
 {
 	task->wait_time = 0;
 	task->flags = tWAITING;
-	if(rsrc->queue_tail){
-		rsrc->queue_tail->queue_next = task;
-		task->queue_prev = rsrc->queue_tail;
-		task->queue_next = NULL;
-		rsrc->queue_tail = task;
-	} else {
-		rsrc->queue_tail = task;
-		rsrc->queue_head = task;
-		task->queue_prev = NULL;
-		task->queue_next = NULL;
-	}
-	rsrc->queue_count++;
 	task->waiting_on = rsrc;
+	list_attach_tail(&rsrc->queue,&task->node);
 }
 
 task_t *rsrc_dequeue(resource_t *rsrc)
 {
-	task_t *task;
-	task = rsrc->queue_head;
+	task_t *task = (task_t *) list_detach_head(&rsrc->queue);
 	if(task){
-		rsrc->queue_head = task->queue_next;
-		if(rsrc->queue_head){
-			rsrc->queue_head->queue_prev = NULL;
-		} else {
-			rsrc->queue_tail = NULL;
-		}
-		rsrc->queue_count--;
-		task->queue_next = NULL;
-		task->queue_prev = NULL;
 		task->waiting_on = NULL;
 		task->flags = tREADY;
 	}
 	return task;
+}
+
+task_t *rsrc_queue_peek(resource_t *rsrc)
+{
+	if(rsrc->queue.next != (node_t*) &rsrc->queue) {
+		return (task_t*) rsrc->queue.next->data;
+	}
 }
 
 const char *rsrc_typename(resource_t *rsrc)
@@ -305,12 +195,13 @@ const char *rsrc_typename(resource_t *rsrc)
 	switch(rsrc->type){
 	case RSRC_NONE: return "none";
 	case RSRC_TASK: return "task";
-	case RSRC_ASPACE: return "address space";
+	case RSRC_ASPACE: return "aspace";
 	case RSRC_PORT: return "port";
-	case RSRC_SEM: return "semaphore";
+	case RSRC_SEM: return "sem";
 	case RSRC_RIGHT: return "right";
 	case RSRC_AREA: return "area";
 	case RSRC_QUEUE: return "queue";
+	case RSRC_TEAM: return "team";
 	default: return "????";
 	}
 }

@@ -71,7 +71,10 @@ void bootfs_closedir (struct vnode *dir, void *cookie);
 int bootfs_rewinddir (struct vnode *dir, void *cookie);
 int bootfs_readdir (struct vnode *dir, struct dirent *dirent, void *cookie);
 int bootfs_open (struct vnode *dir, void **cookie);
-int bootfs_read (struct vnode *dir, char *buf, size_t count, void *cookie);
+int bootfs_close (struct vnode *dir, void *cookie);
+void bootfs_free_cookie (void *cookie);
+int bootfs_read (struct vnode *dir, char *buf, size_t count, off_t offset,
+	size_t *res, void *cookie);
 int bootfs_rstat (struct vnode *vnode, struct stat *buf);
 
 #endif

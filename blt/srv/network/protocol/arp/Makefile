@@ -1,16 +1,8 @@
-# $Id$
+BLTHOME := ../../../../
+include $(BLTHOME)make.conf
 
-include ../../../../make.conf
+CFLAGS		+= -D_NETWORK
+OBJS		:= arp.o
+SHLIB		:= arp.so
 
-CFLAGS = $(CF) -I../../../../include -D_NETWORK
-
-all: arp.so
-
-OBJS = arp.o
-
-arp.so: $(OBJS)
-	$(LD) -Bshareable -o arp.so $(OBJS)
-
-clean:
-	rm -f *.a *.so *.o *~ os.* core *.core *.s *.map *.bin
-
+include $(BLTHOME)make.actions

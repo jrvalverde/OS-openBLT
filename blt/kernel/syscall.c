@@ -44,35 +44,35 @@ typedef struct { uint32 edi, esi, ebp, esp, ebx, edx, ecx, eax; } regs;
 void k_debugger(regs *r, uint32 eip, uint32 cs, uint32 eflags);
 
 extern int live_tasks;
+extern int reaper_sem;
 
 extern boot_dir *bdir;
 
+/* HACK: sem_release will cause a reschedule which would not be good */
+void wake_the_reaper(void)
+{
+	task_t *task;
+	sem_t *sem = rsrc_find_sem(reaper_sem);
+	sem->count++;
+	if(task = rsrc_dequeue(&sem->rsrc)) task_wake(task,ERR_NONE);
+}
+
 void terminate(void)
 {
-    task_t *t = current, *task;
-	resnode_t *p;
-	extern resnode_t *resource_list;
-    
+    task_t *t = current, *t0;
+	
     //kprintf("Task %X terminated.",current->rsrc.id);
     live_tasks--;    
 	rsrc_enqueue(reaper_queue,current);
     current->flags = tDEAD;
-
-	p = resource_list;
-	while (p != NULL)
-	{
-		if (p->resource->type == RSRC_TASK)
-		{
-			task = (task_t *) p->resource;
-			if(task->waiting_on == ((resource_t*)current)){
-				rsrc_enqueue(run_queue, task);
-			}
-		}
-		p = p->next;
-	}
-
+	
+	/* wake all blocking objects */
+	while(t0 = list_detach_head(&t->rsrc.queue)) task_wake(t0,ERR_RESOURCE);
+	
+	wake_the_reaper();
+	
     swtch();
-    //kprintf("panic: HUH? Back from the dead? %x / %x",t,current);
+    kprintf("panic: HUH? Back from the dead? %x / %x",t,current);
     asm("hlt");
 }
 
@@ -96,8 +96,10 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 	char *c, **argv, **temp_argv, **orig_argv;
 	int i, j, len, total;
     unsigned int config;
-//	kprintf("%d %x:%d #%d@%x",current->rsrc.id,eip,cs,r.eax,(uint32)esp);
-	
+#if 0
+	kprintf("* %d %x #%d@%x",current->rsrc.id,eip,r.eax,(uint32)esp);
+#endif
+		
     switch(r.eax){
     case BLT_SYS_os_terminate :
         terminate();    
@@ -165,7 +167,7 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 		break;
 		
     case BLT_SYS_sem_create :
-        res = sem_create(p_uint32(1));
+        res = sem_create(p_uint32(1),p_charptr(2));
         break;
 
     case BLT_SYS_sem_destroy :
@@ -181,7 +183,7 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
         break;
 
     case BLT_SYS_port_create :
-        res = port_create(p_uint32(1));
+        res = port_create(p_uint32(1),p_charptr(2));
         break;
 
     case BLT_SYS_port_destroy :
@@ -217,29 +219,28 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 		break;		
         
     case BLT_SYS_area_create :
-        res = area_create(current->addr, p_uint32(1), p_uint32(2), (void **)p_voidptr(3), p_uint32(4));
+        res = area_create(current->rsrc.owner->aspace, p_uint32(1), p_uint32(2), (void **)p_voidptr(3), p_uint32(4));
         break;
 
     case BLT_SYS_area_clone :
-        res = area_clone(current->addr, p_uint32(1), p_uint32(2), (void **)p_voidptr(3), p_uint32(4));
+        res = area_clone(current->rsrc.owner->aspace, p_uint32(1), p_uint32(2), (void **)p_voidptr(3), p_uint32(4));
         break;
         
     case BLT_SYS_area_destroy :
-        res = area_destroy(current->addr, p_uint32(1));
+        res = area_destroy(current->rsrc.owner->aspace, p_uint32(1));
         break;
         
     case BLT_SYS_area_resize :
-        res = area_resize(current->addr, p_uint32(1), p_uint32(2));
+        res = area_resize(current->rsrc.owner->aspace, p_uint32(1), p_uint32(2));
         break;
 
 	case BLT_SYS_thr_create : {
 		char *name;
         int i;    
         task_t *t;
-        t = new_thread(current->addr, p_uint32(1), 0);
+        t = new_thread(current->rsrc.owner, p_uint32(1), 0);
 		if(t) {
 			*((unsigned int *) (t->ustack + 0xfec)) = p_uint32(2);
-			t->text_area = current->text_area;
 			name = p_charptr(3);
 			if (name == NULL)
 			{
@@ -248,10 +249,9 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
 				}
 				if(i<30) t->rsrc.name[i++] = '+';
 				t->rsrc.name[i] = 0;    
-			}
-			else
+			} else {
 				rsrc_set_name((resource_t *)t, name);
-			t->rsrc.owner = current;        
+			}
 			res = t->rsrc.id;
 		} else {
 			res = -1;

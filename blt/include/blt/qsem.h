@@ -38,10 +38,19 @@ typedef struct
 	volatile int mutex;
 } qsem_t;
 
-qsem_t *qsem_create (int count);
-void qsem_destroy (qsem_t *s);
-void qsem_acquire (qsem_t *s);
-void qsem_release (qsem_t *s);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	qsem_t *qsem_create (int count);
+	void qsem_destroy (qsem_t *s);
+	void qsem_acquire (qsem_t *s);
+	void qsem_release (qsem_t *s);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

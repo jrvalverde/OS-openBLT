@@ -30,23 +30,32 @@
 
 #include <blt/types.h>
 
-void *_malloc(size_t size);
-void *malloc(size_t size);
-void _free(void *ptr);
-void free(void *ptr);
-void *_realloc(void *ptr, size_t size);
-void *realloc(void *ptr, size_t size);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void _exit (int status);
-void exit (int status);
+	void *_malloc(size_t size);
+	void *malloc(size_t size);
+	void _free(void *ptr);
+	void free(void *ptr);
+	void *_realloc(void *ptr, size_t size);
+	void *realloc(void *ptr, size_t size);
+	
+	void _exit (int status);
+	void exit (int status);
+	
+	void _qsort (void *base, size_t nmembers, size_t membsize,
+		int (*compar)(const void *, const void *));
+	void qsort (void *base, size_t nmembers, size_t membsize,
+		int (*compar)(const void *, const void *));
+	
+	int _atoi (const char *a);
+	int atoi (const char *a);
 
-void _qsort (void *base, size_t nmembers, size_t membsize,
-	int (*compar)(const void *, const void *));
-void qsort (void *base, size_t nmembers, size_t membsize,
-	int (*compar)(const void *, const void *));
+#ifdef __cplusplus
+}
+#endif
 
-int _atoi (const char *a);
-int atoi (const char *a);
 
 #endif
 

@@ -29,8 +29,8 @@
 #ifndef _PATH_H_
 #define _PATH_H_
 
-char *path_concat (char *s, char *t);
-char *path_combine (char *s, char *t, char *d);
+char *path_concat (char *s, const char *t);
+char *path_combine (const char *s, const char *t, char *d);
 
 #endif
 

@@ -27,65 +27,71 @@
 */
 
 #include <stdlib.h>
-//#include <blt/os.h>
 #include "path.h"
 
-char *path_concat (char *s, char *t)
+char *path_concat (char *s, const char *t)
 {
-    char *c;
+	char *c;
 
-    c = s;
-    while (*c++) ;
-    c--;
+	c = s;
+	while (*c++) ;
+	c--;
 
-    while (*t) /* for each component */
-        if (*t == '/')
-            *c++ = *t++;
-        else if (*t != '.') /* normal component */
-            while (*t && (*t != '/'))
-                *c++ = *t++;
-        else /* doesn't begin with . or / */
-            {   
-                t++;
-                if (*t == '/') /* ./ component */
-                    t++;
-                else if (*t == '.') /* ../ component */
-                    {   
-                        if (c != s + 1) /* can't .. from the root dir */
-                            {   
-                                c -= 2;
-                                while ((c != s) && (*c != '/'))
-                                    c--;
-                                t++;
-                            }
-                    }
-                else /* component beginning with a period */
-                    {   
-                        *c++ = '.';
-                        while (*t && (*t != '/'))
-                            *c++ = *t++;
-                    }
-            }
-    *c = 0;
+	while (*t) /* for each component */
+		if (*t == '/')
+			*c++ = *t++;
+		else if (*t != '.') /* normal component */
+			while (*t && (*t != '/'))
+				*c++ = *t++;
+		else /* doesn't begin with . or / */
+		{   
+			t++;
+			if ((*t == '/') || !*t) /* ./ component */
+				t++;
+			else if (*t == '.') /* ../ component */
+			{   
+				if (c != s + 1) /* can't .. from the root dir */
+				{   
+					c -= 2;
+					while ((c != s) && (*c != '/'))
+						c--;
+					c++;
+					t++;
+					if (*t == '/')
+						t++;
+				}
+			}
+			else /* component beginning with a period */
+			{   
+				*c++ = '.';
+				while (*t && (*t != '/'))
+					*c++ = *t++;
+			}
+		}
 
-    return s;
+	*c = 0;
+	if (((c - 1) != s) && (c[-1] == '/'))
+		c[-1] = 0;
+
+	return s;
 }
 
-char *path_combine (char *s, char *t, char *d)
+char *path_combine (const char *s, const char *t, char *d)
 {
-    char *node, *c;
+	const char *c;
+	char *node;
 
 	*d = 0;
 	node = d;
-    if (*t == '/')
-        return path_concat (node, t);
+	if (*t == '/')
+		return path_concat (node, t);
 
-    c = s;
-    while (*c)
-        *d++ = *c++;
-    if (*d != '/')
-        *d++ = '/';
+	c = s;
+	while (*c)
+		*d++ = *c++;
+	if (*d != '/')
+		*d++ = '/';
 
-    return path_concat (node, t);
+	return path_concat (node, t);
 }
 

@@ -29,8 +29,17 @@
 #ifndef _SYS_IOCTL_H_
 #define _SYS_IOCTL_H_
 
-int _ioctl (int fd, unsigned long request, char *argp);
-int ioctl (int fd, unsigned long request, char *argp);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	int _ioctl (int fd, unsigned long request, char *argp);
+	int ioctl (int fd, unsigned long request, char *argp);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

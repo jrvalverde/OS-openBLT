@@ -37,6 +37,7 @@
 #include "aspace.h"
 #include "task.h"
 #include "smp.h"
+#include "team.h"
 
 #include "assert.h"
 
@@ -63,6 +64,8 @@ task_t *idle_task;
 int live_tasks = 0;
 
 resource_t *run_queue, *timer_queue, *reaper_queue;
+team_t *kernel_team = NULL;
+int reaper_sem;
 
 uint32 memsize; /* pages */
 uint32 memtotal;
@@ -85,6 +88,7 @@ void panic(char *reason)
 {
     kprintf("");
     kprintf("PANIC: %s",reason);    
+	DEBUGGER();
     asm("hlt");    
 }
 
@@ -93,6 +97,20 @@ void idler(void)
     for(;;){
         asm("hlt");        
     }    
+}
+
+void reaper(void)
+{
+	task_t *task;
+	
+	asm("cli");	/* XXX race condition? */
+	for(;;){
+		sem_acquire(reaper_sem);
+		task = rsrc_dequeue(reaper_queue);		
+		kprintf("reaper reclaiming thread #%d (%s)",task->rsrc.id,task->rsrc.name);
+		task_destroy(task);
+	}
+	
 }
 
 static aspace_t _flat;
@@ -126,10 +144,8 @@ void init_kspace(int membottom)
     kernel->flags = tKERNEL;
 	kernel->rsrc.id = 0;
 	kernel->rsrc.owner = NULL;
-	kernel->rsrc.rights = NULL;
-	kernel->rsrc.queue_count = 0;
-	kernel->rsrc.queue_head = NULL;
-	kernel->rsrc.queue_tail = NULL;
+	list_init(&kernel->rsrc.rights);
+	list_init(&kernel->rsrc.queue);
     current = kernel;
 
     init_idt(idt = kgetpages(1));              /* init the new idt, save the old */
@@ -188,6 +204,9 @@ void preempt(task_t *task, int status)
 	/* current thread MUST be running, requeue it */	
 	if(current != idle_task) rsrc_enqueue(run_queue, current);
 
+	TCHKMAGIC(task);
+	if(task == tDEAD) panic("The dead have returned!");
+	
 	/* transfer control to the preemtee -- it had better not be on any queues */	
     current = task;
 	current->status = status;
@@ -203,9 +222,9 @@ void swtch(void)
 {
 	/* current == running thread */
 	uint32 *savestack = &(current->esp);
-    
+	
 	/* fast path for the case of only one running thread */
-	if(!run_queue->queue_count && (current->flags == tRUNNING)) return;
+	if(!run_queue->queue.count && (current->flags == tRUNNING)) return;
 	
 #ifdef __SMP__
     if (smp_my_cpu ())
@@ -229,6 +248,9 @@ void swtch(void)
         }
     }
     
+	if(current->flags == tDEAD) panic("The dead have returned!");
+	TCHKMAGIC(current);
+	
     current->flags = tRUNNING;    
     current->scount++;
     ktss->esp0 = current->esp0;
@@ -237,23 +259,24 @@ void swtch(void)
     }    
 }
 
-task_t *new_thread(aspace_t *a, uint32 ip, int kernelspace)
+task_t *new_thread(team_t *team, uint32 ip, int kernelspace)
 {
     task_t *t;
     int stack;
     void *addr;
     int i;
 
+	/* xxx this should be cleaner -- have a flag to area_create perhaps */
     for(i=1023;i>0;i--){
-        if(!a->ptab[i]) break;
+        if(!team->aspace->ptab[i]) break;
     }
-    stack = area_create(a, 4096, i*4096, &addr, 0);
+    stack = area_create(team->aspace, 4096, i*4096, &addr, 0);
     if(!stack) panic("cannot create a stack area. eek");
 
-    t = task_create(a, ip, i*4096+4092, kernelspace);
-    t->ustack = (void *) (i << 12);
-    rsrc_set_owner(rsrc_find(RSRC_AREA,stack), t);
-    rsrc_bind(&t->rsrc, RSRC_TASK, kernel);
+    t = task_create(team, ip, i*4096+4092, kernelspace);
+    t->ustack = (void *) (i << 12);	
+	t->stack_area = rsrc_find(RSRC_AREA,stack);
+    rsrc_bind(&t->rsrc, RSRC_TASK, team);
     t->flags = tREADY;
     if(!kernelspace) {
 		rsrc_enqueue(run_queue, t);
@@ -266,11 +289,13 @@ task_t *new_thread(aspace_t *a, uint32 ip, int kernelspace)
 int brk(uint32 addr)
 {
     int i;
-    aspace_t *a = current->addr;
-    area_t *area = rsrc_find_area(a->heap_id);
+    aspace_t *a = current->rsrc.owner->aspace;
+    area_t *area = rsrc_find_area(current->rsrc.owner->heap_id);
     
     if(area){
-        return area_resize(a,a->heap_id, (addr - area->virt_addr) & 0xFFFFF000);
+//		kprintf("brk addr %x thid %d",addr,current->rsrc.id);
+        return area_resize(a,current->rsrc.owner->heap_id,
+							0x1000 + ((addr - area->virt_addr) & 0xFFFFF000));
     }
     return ERR_MEMORY;
 }
@@ -282,72 +307,81 @@ int brk(uint32 addr)
 */
 
 
-void go_kernel(void)
+void go_kernel(void) 
 {
     task_t *t;
     int i,j,n,len;
-    aspace_t *a;
     void *ptr,*src,*phys;
     port_t *uberport;
 	area_t *uberarea;
+	team_t *team;
 
 	for (i = 0, len = 1; (bdir->bd_entry[i].be_type != BE_TYPE_NONE); i++){
 		len += bdir->bd_entry[i].be_size;
 	}
 	len *= 0x1000;
 
-    uberport = rsrc_find_port(uberportnum = port_create(0));
+    uberport = rsrc_find_port(uberportnum = port_create(0,"uberport"));
 	uberarea = rsrc_find_area(uberareanum = area_create_uber(len, 0x100000));
     kprintf("uberport allocated with rid = %d",uberportnum);
     kprintf("uberarea allocated with rid = %d",uberareanum);
 
-	run_queue = rsrc_find_queue(queue_create("run queue"));
-	reaper_queue = rsrc_find_queue(queue_create("reaper queue"));
-	timer_queue = rsrc_find_queue(queue_create("timer queue"));
-	    
+	kernel_team = team_create();
+	rsrc_set_name(&kernel_team->rsrc, "kernel team");
+	
+	run_queue = rsrc_find_queue(queue_create("run queue",kernel_team));
+	reaper_queue = rsrc_find_queue(queue_create("reaper queue",kernel_team));
+	timer_queue = rsrc_find_queue(queue_create("timer queue",kernel_team));
+	rsrc_set_owner(&uberarea->rsrc,kernel_team);
+	rsrc_set_owner(&uberport->rsrc,kernel_team);
+	
     for(i=3;bdir->bd_entry[i].be_type;i++){
         if(bdir->bd_entry[i].be_type != BE_TYPE_CODE) continue;
         
-        a = aspace_create();        
-        t = new_thread(a, 0x1074 /*bdir->bd_entry[i].be_code_ventr*/, 0);
+		team = team_create();
+        t = new_thread(team, 0x1074 /*bdir->bd_entry[i].be_code_ventr*/, 0);
         current = t;
 
         phys = (void *) (bdir->bd_entry[i].be_offset*0x1000 + 0x100000);
-//        ptr = kgetpages2 (bdir->bd_entry[i].be_size, 3, (uint32 *) &phys);
-//        for (j = 0; j < bdir->bd_entry[i].be_size * 0x1000; j++)
-//            *((char *) ptr + j) = *((char *) src + j);
-        t->text_area = area_create(a,bdir->bd_entry[i].be_size*0x1000,
+        team->text_area = area_create(team->aspace,bdir->bd_entry[i].be_size*0x1000,
             0x1000, &phys, 0x1010);
-        a->heap_id = area_create(a,0x2000,0x1000 + bdir->bd_entry[i].be_size*
+        team->heap_id = area_create(team->aspace,0x2000,0x1000 + bdir->bd_entry[i].be_size*
             0x1000, &ptr, 0);
 
         /* make the thread own it's address space */
-        rsrc_set_owner(&a->rsrc, t);
+        /* rsrc_set_owner(&a->rsrc, t); */
 
         if (!strcmp (bdir->bd_entry[i].be_name, "namer")) {
-            rsrc_set_owner(&uberport->rsrc, t);
+            rsrc_set_owner(&uberport->rsrc, team);
         }
         
-		rsrc_set_name((resource_t*)t,bdir->bd_entry[i].be_name);
-		
+		rsrc_set_name(&t->rsrc,bdir->bd_entry[i].be_name);
+		rsrc_set_name(&team->rsrc,bdir->bd_entry[i].be_name);
+	
         kprintf("task %X @ 0x%x, size = 0x%x (%s)",t->rsrc.id,
                 bdir->bd_entry[i].be_offset*4096+0x100000,
                 bdir->bd_entry[i].be_size*4096,
                 t->rsrc.name);
     }
 
-    kprintf("creating idle task...");    
-    a = aspace_create();    
-    idle_task = new_thread(a, (int) idler, 1);
-    rsrc_set_owner(&a->rsrc, idle_task);
+    kprintf("creating idle task...");
+    idle_task = new_thread(kernel_team, (int) idler, 1);
 	rsrc_set_name((resource_t*)idle_task,"idler");
+
+    kprintf("creating idle task...");
+    current = new_thread(kernel_team, (int) reaper, 1);
+	rsrc_set_name((resource_t*)current,"grim reaper");
+	reaper_sem = sem_create(0,"death toll");
+	rsrc_enqueue(run_queue, current);
+	live_tasks++;
+	
 	rsrc_set_name((resource_t*)kernel,"kernel");
 
 #ifdef __SMP__
     smp_init ();
 #endif
 
-    DEBUGGER();
+//    DEBUGGER();
     kprintf("starting scheduler...");    
 
 #ifdef __SMP__
@@ -367,6 +401,7 @@ void go_kernel(void)
         
     current = kernel;
     current->flags = tDEAD;
+	current->waiting_on = NULL;
     swtch();
     
     kprintf("panic: returned from scheduler?");
@@ -400,7 +435,7 @@ void kmain(void)
     init_kspace(256 + len + 16); /* bottom of kernel memory */
     
     kprintf_init();
-#ifdef DPRINTF
+#ifdef SERIAL
 	dprintf_init();
 #endif
 

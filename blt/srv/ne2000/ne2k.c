@@ -39,7 +39,7 @@
 #include "ne2k.h"
 
 /* hard code these for now */
-#define NIC_IRQ		3
+#define NIC_IRQ		5
 #define NIC_ADDR	0x300
 
 static unsigned char *loadip = (unsigned char *) 0x1020;
@@ -518,7 +518,7 @@ control(void)
     int size;
     
     nh = namer_newhandle();
-    namer_register(nh, port_net = port_create(0),"net");
+    namer_register(nh, port_net = port_create(0,"net_listen_port"),"net");
 
 if (port_net)
 trace(1, "control: sem port_net");
@@ -566,7 +566,7 @@ sender(void)
     msg_hdr_t mh;
     pbuf *packet;
     
-    port_xmit = port_create(port_isr);
+    port_xmit = port_create(port_isr,"net_isr_port");
 /*    port_xmit_done = port_create(port_isr);*/
     sem_xmit_done = qsem_create(1);
     
@@ -603,7 +603,7 @@ dispatcher(void)
     pbuf *packet;
     unsigned char *b;
     msg_hdr_t msg;
-    port_dispatch = port_create(port_isr);
+    port_dispatch = port_create(port_isr,"net_dispatch_port");
 
 if (port_dispatch)
 trace(1, "dispatcher: sem port_dispatcher");
@@ -684,7 +684,7 @@ int main(int argc, char **argv)
     mutex = qsem_create(1);
 
         /* create our send port */
-    port_isr = port_create(0);
+    port_isr = port_create(0,"net_send_port");
     port_set_restrict(port_isr, port_isr);
 
     nh = namer_newhandle();    

@@ -214,14 +214,23 @@ typedef struct
 #define SHN_COMMON     0xfff2
 #define SHN_HIRESERVE  0xffff
 
-elf32_sec_hdr_t *_elf_find_section_hdr (elf32_hdr_t *hdr, char *name);
-elf32_sec_hdr_t *elf_find_section_hdr (elf32_hdr_t *hdr, char *name);
-void *_elf_lookup_sym (int filenum, const char *name);
-void *elf_lookup_sym (int filenum, const char *name);
-void *_elf_find_section_data (elf32_hdr_t *hdr, char *name);
-void *elf_find_section_data (elf32_hdr_t *hdr, char *name);
-int _elf_section_size (elf32_hdr_t *hdr, char *name);
-int elf_section_size (elf32_hdr_t *hdr, char *name);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	elf32_sec_hdr_t *_elf_find_section_hdr (elf32_hdr_t *hdr, char *name);
+	elf32_sec_hdr_t *elf_find_section_hdr (elf32_hdr_t *hdr, char *name);
+	void *_elf_lookup_sym (int filenum, const char *name);
+	void *elf_lookup_sym (int filenum, const char *name);
+	void *_elf_find_section_data (elf32_hdr_t *hdr, char *name);
+	void *elf_find_section_data (elf32_hdr_t *hdr, char *name);
+	int _elf_section_size (elf32_hdr_t *hdr, char *name);
+	int elf_section_size (elf32_hdr_t *hdr, char *name);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

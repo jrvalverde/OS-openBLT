@@ -45,12 +45,21 @@ typedef struct
 	float max_load;
 } hashtable_t;
 
-hashtable_t *hashtable_new (float max_load);
-void hashtable_del (hashtable_t *t);
-void hashtable_insert (hashtable_t *t, int key, void *data, int dsize);
-void *hashtable_lookup (hashtable_t *t, int key, int *dsize);
-void *hashtable_remove (hashtable_t *t, int key, int *dsize);
-void hashtable_print (hashtable_t *t);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	hashtable_t *hashtable_new (float max_load);
+	void hashtable_del (hashtable_t *t);
+	void hashtable_insert (hashtable_t *t, int key, void *data, int dsize);
+	void *hashtable_lookup (hashtable_t *t, int key, int *dsize);
+	void *hashtable_remove (hashtable_t *t, int key, int *dsize);
+	void hashtable_print (hashtable_t *t);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

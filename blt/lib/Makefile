@@ -1,10 +1,9 @@
-# $Id$
+BLTHOME := ../
+include $(BLTHOME)make.conf
 
-include ../make.conf
+TARGETS		:= obj crt0.o crtb.o c++rt0.o version.o subdirs
 
-CFLAGS = $(CF) -I../include -Wall
-
-all: obj crt0.o libc libblt libconsole libdl
+SUBDIRS		:= libc libblt libc++ libconsole libdl libwin
 
 obj:
 	mkdir obj
@@ -13,27 +12,16 @@ obj:
 	ln -fs ../libc/libc.a obj
 	ln -fs ../libc/libc.so obj
 	ln -fs ../libc/libkern.a obj
+	ln -fs ../libc++/libc++.a obj
+	ln -fs ../libc++/libc++.so obj
 	ln -fs ../libconsole/libconsole.a obj
 	ln -fs ../libconsole/libconsole.so obj
 	ln -fs ../libdl/libdl.a obj
 	ln -fs ../libdl/libdl.so obj
+	ln -fs ../libwin/libwin.a obj
+	ln -fs ../libwin/libwin.so obj
 
-libc::
-	@cd libc ; $(MAKE)
+clean::
+	@rm -rf obj
 
-libconsole::
-	@cd libconsole ; $(MAKE)
-
-libblt::
-	@cd libblt ; $(MAKE)
-
-libdl::
-	@cd libdl ; $(MAKE)
-
-clean:
-	rm -rf obj
-	rm -f *.a *.so *.o *~ os.* core *.core *.s *.map *.bin
-	@cd libc ; $(MAKE) clean
-	@cd libblt ; $(MAKE) clean
-	@cd libconsole ; $(MAKE) clean
-	@cd libdl ; $(MAKE) clean
+include $(BLTHOME)make.actions

@@ -1,6 +1,6 @@
 /* $Id$
 **
-** Copyright 1998 Sidney Cammeresi
+** Copyright 1998-1999 Sidney Cammeresi
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <boot.h>
+#include <dlfcn.h>
 #include <sys/stat.h>
 #include <blt/syscall.h>
 #include <blt/namer.h>
@@ -52,55 +53,11 @@ struct fs_type *fs_drivers;
 struct superblock *mount_list = NULL;
 hashtable_t *conn_table;
 
-//extern struct fs_type rootfs, bootfs, portalfs;
+void __libc_init_vfs (void), __dlinit (void);
+
 extern struct fs_type rootfs, bootfs;
 extern void __libc_init_console ();
-
-int fs_register (struct fs_type *driver)
-{
-	struct fs_type *p;
-
-	if (fs_drivers == NULL)
-	{
-		fs_drivers = driver;
-		fs_drivers->next = NULL;
-		return 0;
-	}
-	else
-	{
-		p = fs_drivers;
-		while (p->next != NULL)
-		{
-			if (!strcmp (p->name, driver->name))
-				return 1;
-			p = p->next;
-		}
-		p->next = driver;
-		driver->next = NULL;
-		return 0;
-	}
-}
-
-struct superblock *fs_find (const char *node)
-{
-	int len, bestlen;
-	struct superblock *super, *best;
-
-	super = mount_list;
-	len = bestlen = 0;
-	best = NULL;
-	while (super != NULL)
-	{
-		if (!strncmp (super->sb_dir, node, len = strlen (super->sb_dir)))
-			if (len > bestlen)
-			{
-				best = super;
-				bestlen = len;
-			}
-		super = super->sb_next;
-	}
-	return best;
-}
+extern int __blk_ref;
 
 vfs_res_t *vfs_openconn (int rport, int area)
 {
@@ -111,7 +68,7 @@ vfs_res_t *vfs_openconn (int rport, int area)
 	res = malloc (sizeof (vfs_res_t));
 	res->status = VFS_OK;
 	res->errno = 0;
-	private_port = port_create (rport);
+	private_port = port_create (rport, "vfs_private_port");
 	port_slave (vfs_port, private_port);
 	res->data[0] = private_port;
 
@@ -120,6 +77,8 @@ vfs_res_t *vfs_openconn (int rport, int area)
 	client->out = private_port;
 	client->filename_area = area;
 	area_clone (area, 0, (void **) &client->nameptr, 0);
+	client->ioctx.cwd = malloc (BLT_MAX_NAME_LENGTH);
+	strcpy (client->ioctx.cwd, "/");
 	for (i = 0; i < MAX_FDS; i++)
 		client->ioctx.fdarray.ofile[i] = NULL;
 	hashtable_insert (conn_table, client->in, client, sizeof (struct client));
@@ -142,65 +101,6 @@ vfs_res_t *vfs_scroll_area (struct client *client, vfs_cmd_t *vc)
 		&res->data[1]);
 	res->status = VFS_OK;
 	res->errno = 0;
-	return res;
-}
-
-int vfs_mount (const char *dir, char *type, int flags, void *data)
-{
-	int res;
-	static int rootmounted = 0;
-	struct fs_type *driver;
-	struct superblock *super;
-
-#ifdef VFS_DEBUG
-	printf ("vfs_mount %s %s\n", dir, type);
-#endif
-
-	/* find filesystem driver */
-	driver = fs_drivers;
-	while (driver != NULL)
-	{
-		if (!strcmp (driver->name, type))
-			break;
-		else
-			driver = driver->next;
-	}
-	if (driver == NULL)
-	{
-		printf ("vfs: no driver\n");
-		return 1;
-	}
-	super = malloc (sizeof (struct superblock));
-	super->sb_vops = driver->t_vops;
-
-	super->sb_dir = malloc (strlen (dir) + 1);
-	strcpy (super->sb_dir, dir);
-
-	/* verify mount point existence */
-	if (!rootmounted)
-	{
-		rootmounted = 1;
-		super->sb_dev = "none";
-	}
-	else
-	{
-		super->sb_dev = "none";
-	}
-
-	super->sb_vnode_cache = hashtable_new (0.75);
-	super->sb_next = NULL;
-	res = driver->t_vops->mount (super, data, 1);
-	if (!res)
-	{
-		if (mount_list != NULL)
-			super->sb_next = mount_list;
-		mount_list = super;
-#ifdef VFS_DEBUG
-		printf ("vfs: mounted type %s on %s from %s\n", type,
-			super->sb_dir, super->sb_dev);
-#endif
-	}
-	//if (!strcmp (dir, "/boot")) for (;;) ;
 	return res;
 }
 
@@ -229,17 +129,17 @@ int vfs_mkdir (const char *dir, mode_t mode)
 
 vfs_res_t *vfs_opendir (struct client *client, vfs_cmd_t *vc)
 {
-	const char *dir;
+	char *reldir, *dir;
 	int i;
 	vfs_res_t *res;
 	struct ofile *ofile;
 	struct superblock *super;
 	struct vnode *vnode;
 
-	dir = client->nameptr + vc->data[0];
+	reldir = client->nameptr + vc->data[0];
 	res = malloc (sizeof (vfs_res_t));
 #ifdef VFS_DEBUG
-	printf ("vfs_opendir %s\n", dir);
+	printf ("vfs_opendir %s\n", reldir);
 #endif
 
 	/* get a file descriptor */
@@ -254,17 +154,22 @@ vfs_res_t *vfs_opendir (struct client *client, vfs_cmd_t *vc)
 	}
 
 	/* is opendir supported? */
+	dir = malloc (BLT_MAX_NAME_LENGTH);
+	strlcpy (dir, client->ioctx.cwd, BLT_MAX_NAME_LENGTH);
+	path_combine (client->ioctx.cwd, reldir, dir);
 	super = fs_find (dir);
 	if (super == NULL)
 	{
 		res->status = VFS_ERROR;
 		res->errno = ENOENT;
+		free (dir);
 		return res;
 	}
 	if (super->sb_vops->opendir == NULL)
 	{
 		res->status = VFS_ERROR;
 		res->errno = ENOSYS;
+		free (dir);
 		return res;
 	}
 
@@ -272,10 +177,14 @@ vfs_res_t *vfs_opendir (struct client *client, vfs_cmd_t *vc)
 	if (!strcmp (dir, super->sb_dir))
 		vnode = super->sb_root;
 	else
-	{
-		printf ("UNTESTED\n");
 		vnode = super->sb_vops->walk (super->sb_root, dir +
-			strlen (super->sb_dir));
+			strlen (super->sb_dir) + 1);
+	if (vnode == NULL)
+	{
+		res->status = VFS_ERROR;
+		res->errno = ENOENT;
+		free (dir);
+		return res;
 	}
 
 	/* stat here to check for directory */
@@ -289,6 +198,7 @@ vfs_res_t *vfs_opendir (struct client *client, vfs_cmd_t *vc)
 	res->errno = super->sb_vops->opendir (vnode, &ofile->o_cookie);
 	res->status = res->errno ? VFS_ERROR : VFS_OK;
 	res->data[0] = i;
+	free (dir);
 	return res;
 }
 
@@ -386,6 +296,7 @@ vfs_res_t *vfs_open (struct client *client, vfs_cmd_t *vc)
 	/* call filesystem */
 	ofile = client->ioctx.fdarray.ofile[i] = malloc (sizeof (struct ofile));
 	ofile->o_vnode = vnode;
+	ofile->o_pos = 0;
 	ofile->area = area_clone (vc->data[1], 0, &ofile->dataptr, 0);
 	ofile->offset = vc->data[2];
 	ofile->length = vc->data[3];
@@ -397,8 +308,76 @@ vfs_res_t *vfs_open (struct client *client, vfs_cmd_t *vc)
 
 vfs_res_t *vfs_close (struct client *client, vfs_cmd_t *vc)
 {
+	vfs_res_t *res;
+	struct ofile *ofile;
+	struct superblock *super;
+
+	res = malloc (sizeof (vfs_res_t));
+#ifdef VFS_DEBUG
 	printf ("vfs_close\n");
-	return NULL;
+#endif
+
+	ofile = client->ioctx.fdarray.ofile[vc->data[0]];
+	if (ofile == NULL)
+	{
+		res->status = VFS_ERROR;
+		res->errno = EBADF;
+		return res;
+	}
+	super = ofile->o_vnode->v_sb;
+	if (super->sb_vops->close == NULL)
+	{
+		res->status = VFS_ERROR;
+		res->errno = ENOSYS;
+		return res;
+	}
+	res->errno = super->sb_vops->close (ofile->o_vnode,
+		ofile->o_cookie);
+
+	if (super->sb_vops->free_cookie != NULL)
+		super->sb_vops->free_cookie (ofile->o_cookie);
+
+	res->status = res->errno ? VFS_ERROR : VFS_OK;
+	return res;
+}
+
+vfs_res_t *vfs_read (struct client *client, vfs_cmd_t *vc, void **data,
+	int *len)
+{
+	size_t numread;
+	void *buf;
+	vfs_res_t *res;
+	struct ofile *ofile;
+	struct superblock *super;
+
+#ifdef VFS_DEBUG
+	printf ("vfs_read\n");
+#endif
+	res = malloc (sizeof (vfs_res_t));
+	buf = malloc (vc->data[1]);
+
+	ofile = client->ioctx.fdarray.ofile[vc->data[0]];
+	if (ofile == NULL)
+	{
+		res->status = VFS_ERROR;
+		res->errno = EBADF;
+		return res;
+	}
+	super = ofile->o_vnode->v_sb;
+	if (super->sb_vops->read == NULL)
+	{
+		res->status = VFS_ERROR;
+		res->errno = ENOSYS;
+		return res;
+	}
+
+	res->errno = super->sb_vops->read (ofile->o_vnode, buf, vc->data[1],
+		ofile->o_pos, &numread, ofile->o_cookie);
+	res->status = res->errno ? VFS_ERROR : VFS_OK;
+	res->data[0] = numread;
+	ofile->o_pos += *len = numread;
+	*data = buf;
+	return res;
 }
 
 vfs_res_t *vfs_rstat (struct client *client, vfs_cmd_t *vc)
@@ -447,9 +426,127 @@ vfs_res_t *vfs_rstat (struct client *client, vfs_cmd_t *vc)
 	return res;
 }
 
+void vfs_tell_cmd (const char *cmd, char *arg)
+{
+	char *name;
+	const char *type, *dir, *data;
+	int i, len;
+	void *handle;
+
+	if (!strcmp (cmd, "load"))
+	{
+		printf (" %s", arg);
+        name = malloc (len = BLT_MAX_NAME_LENGTH);
+        strlcpy (name, "/boot/", len);
+        strlcat (name, arg, len);
+        strlcat (name, ".so", len);
+        handle = dlopen (name, 0);
+        if (handle == NULL)
+        {
+            printf ("(error)");
+            return;
+        }
+        free (name);
+	}
+	else if (!strcmp (cmd, "mount"))
+	{
+		type = arg;
+		for (i = 0; arg[i] != ' '; i++) ;
+		arg[i] = 0;
+		dir = arg + i + 1;
+		for (arg++; arg[i] != ' '; i++) ;
+		arg[i] = 0;
+		data = arg + i + 1;
+		vfs_mount (dir, type, 0, data);
+	}
+}
+
+void vfs_tell_parse (const char *msg)
+{
+    const char *c, *cmd;
+    char *full;
+    char *d;
+    int i, whole, len;
+
+    c = msg;
+    cmd = full = NULL;
+    whole = len = 0;
+    while (*c)
+    {
+        i = 0;
+        while ((c[i] != ' ') && c[i])
+            i++;
+        d = malloc (i + 1);
+        strlcpy (d, c, i + 1);
+        if (cmd == NULL)
+        {
+            cmd = d;
+            if (!strcmp (cmd, "load"))
+                printf ("vfs: loading drivers.  [");
+            else if (!strcmp (cmd, "mount"))
+            {
+                whole = 1;
+                full = malloc (len = strlen (msg + 1));
+                *full = 0;
+            }
+        }
+        else if (!whole)
+            vfs_tell_cmd (cmd, d);
+        else
+        {
+            strlcat (full, d, len);
+            strlcat (full, " ", len);
+        }
+        if (i != strlen (c))
+            c += i + 1;
+        else
+            break;
+    }
+	if (whole)
+		full[strlen (full) - 1] = 0;
+    if (!strcmp (cmd, "load"))
+        printf (" ]\n");
+	else if (!strcmp (cmd, "mount"))
+		vfs_tell_cmd (cmd, full);
+}
+
+void vfs_tell (void)
+{
+	char buf[64];
+	int port, nh;
+	msg_hdr_t mh;
+
+	__libc_init_fdl ();
+	__libc_init_vfs ();
+	__dlinit ();
+	__blk_ref++;
+
+	port = port_create (0, "vfs:tell");
+	nh = namer_newhandle ();
+	namer_register (nh, port, "vfs:tell");
+	namer_delhandle (nh);
+
+	for (;;)
+	{
+		mh.src = 0;
+		mh.dst = port;
+		mh.data = buf;
+		mh.size = sizeof (buf);
+		port_recv (&mh);
+		vfs_tell_parse (mh.data);
+
+		mh.dst = mh.src;
+		mh.src = port;
+		mh.data = &nh;
+		mh.size = 1;
+		port_send (&mh);
+	}
+}
+
 int vfs_main (volatile int *ready)
 {
-	int nh, size;
+	int i, nh, size, len;
+	void *data;
 	msg_hdr_t msg, reply;
 	vfs_cmd_t vc;
 	vfs_res_t *res;
@@ -459,9 +556,9 @@ int vfs_main (volatile int *ready)
 	__libc_init_console ();
 
 	/* get a public port and register ourself with the namer */
-	vfs_port = port_create (0);
+	vfs_port = port_create (0, "vfs_listen_port");
 	nh = namer_newhandle ();
-	(void) namer_register (nh, vfs_port, "vfs");
+	namer_register (nh, vfs_port, "vfs");
 	namer_delhandle (nh);
 
 	/* say hello */
@@ -479,12 +576,10 @@ int vfs_main (volatile int *ready)
 	/* mount the root and boot filesystems */
 	fs_register (&rootfs);
 	fs_register (&bootfs);
-	//fs_register (&portalfs);
 	vfs_mount ("/", "rootfs", 0, NULL);
 	vfs_mkdir ("/boot", 755);
 	vfs_mount ("/boot", "bootfs", 0, NULL);
-	//vfs_mkdir ("/portal", 755);
-	//vfs_mount ("/portal", "portalfs", 0, NULL);
+	thr_create (vfs_tell, 0, "vfs:tell");
 	*ready = 1;
 
 	for (;;)
@@ -502,6 +597,7 @@ int vfs_main (volatile int *ready)
 		if (vc.cmd != VFS_OPENCONN)
 			client = hashtable_lookup (conn_table, msg.src, NULL);
 		size = sizeof (vfs_res_t);
+		data = NULL;
 
 		switch (vc.cmd)
 		{
@@ -535,9 +631,20 @@ int vfs_main (volatile int *ready)
 				res = vfs_close (client, &vc);
 				break;
 
+			case VFS_READ:
+				res = vfs_read (client, &vc, &data, &len);
+				break;
+
 			case VFS_RSTAT:
 				res = vfs_rstat (client, &vc);
 				size = sizeof (vfs_res_t) + sizeof (struct stat);
+				break;
+
+			case VFS_MKDIR:
+				res = malloc (sizeof (vfs_res_t));
+				res->status = vfs_mkdir (client->nameptr + vc.data[0],
+					vc.data[1]);
+				res->errno = 0;
 				break;
 		}
 
@@ -549,6 +656,31 @@ int vfs_main (volatile int *ready)
 			reply.size = size;
 			port_send (&reply);
 			free (res);
+
+			if (data != NULL)
+			{
+				reply.src = client->out;
+				reply.dst = msg.src;
+				if (len < 0x1000)
+				{
+					reply.data = data;
+					reply.size = len;
+					port_send (&reply);
+				}
+				else
+				{
+					for (i = 0; len > 0x1000; i += 0x1000, len -= 0x1000)
+					{
+						reply.data = (char *) data + i;
+						reply.size = 0x1000;
+						port_send (&reply);
+					}
+					reply.data = (char *) data + i;
+					reply.size = len;
+					port_send (&reply);
+				}
+				free (data);
+			}
 		}
 	}
 

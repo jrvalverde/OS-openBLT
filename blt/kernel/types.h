@@ -38,11 +38,9 @@ typedef struct __sem_t sem_t;
 typedef struct __task_t task_t;
 typedef struct __aspace_t aspace_t;
 typedef struct __area_t area_t;
+typedef struct __team_t team_t;
 
+typedef struct __list_t list_t;
 typedef struct __node_t node_t;
-typedef struct __anode_t anode_t;
-typedef struct __rnode_t rnode_t;
-typedef struct __tnode_t tnode_t;
-typedef struct __resnode_t resnode_t;
 
 #endif

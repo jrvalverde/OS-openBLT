@@ -45,8 +45,17 @@
 #define O_SHLOCK           0x00000080
 #define O_EXLOCK           0x00000100
 
-int _open (const char *path, int flags, mode_t mode);
-int open (const char *path, int flags, mode_t mode);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	int _open (const char *path, int flags, mode_t mode);
+	int open (const char *path, int flags, mode_t mode);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

@@ -44,8 +44,8 @@ static struct vnode_ops bootfs_vnode_ops =
 	bootfs_mount, bootfs_unmount, NULL, NULL, NULL, NULL,
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	bootfs_opendir, bootfs_closedir, NULL, bootfs_rewinddir, bootfs_readdir,
-	bootfs_open, NULL, NULL, bootfs_read, NULL, NULL, NULL, bootfs_rstat,
-		NULL, NULL,
+	bootfs_open, bootfs_close, bootfs_free_cookie, bootfs_read, NULL,
+		NULL, NULL, bootfs_rstat, NULL, NULL,
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	NULL, NULL, NULL, NULL
@@ -253,10 +253,26 @@ int bootfs_open (struct vnode *vnode, void **cookie)
 	return 0;
 }
 
-int bootfs_read (struct vnode *vnode, char *buf, size_t count, void *cookie)
+int bootfs_close (struct vnode *vnode, void *cookie)
+{
+#ifdef BOOTFS_DEBUG
+	printf ("bootfs_close %llx\n", vnode->v_vnid);
+#endif
+	return 0;
+}
+
+void bootfs_free_cookie (void *cookie)
+{
+#ifdef BOOTFS_DEBUG
+	printf ("bootfs_free_cookie\n");
+#endif
+	free (cookie);
+}
+
+int bootfs_read (struct vnode *vnode, char *buf, size_t count, off_t offset,
+	size_t *numread, void *cookie)
 {
 	char *src;
-	int numbytes;
 	struct bootfs_sb_data *data;
 	struct bootfs_inode *inode;
 	union bootfs_cookie *bc;
@@ -267,14 +283,16 @@ int bootfs_read (struct vnode *vnode, char *buf, size_t count, void *cookie)
 	data = vnode->v_sb->sb_data;
 	inode = vnode->v_data;
 	bc = cookie;
-	if (bc->u_file.pos >= inode->i_size)
+	if (offset >= inode->i_size)
+	{
+		*numread = 0;
 		return 0;
-	src = (char *) data->d_bootdir + inode->i_offset * 0x1000 + bc->u_file.pos;
-	numbytes = (count <= inode->i_size - bc->u_file.pos) ? count :
-		(inode->i_size - bc->u_file.pos);
-	memcpy (buf, src, numbytes);
-	bc->u_file.pos += numbytes;
-	return numbytes;
+	}
+	src = (char *) data->d_bootdir + inode->i_offset * 0x1000 + offset;
+	*numread = (count <= inode->i_size - offset) ? count : (inode->i_size -
+		offset);
+	memcpy (buf, src, *numread);
+	return 0;
 }
 
 int bootfs_rstat (struct vnode *vnode, struct stat *buf)

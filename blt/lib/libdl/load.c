@@ -30,10 +30,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <errno.h>
 #include <dlfcn.h>
 #include <sys/stat.h>
 #include <blt/libsyms.h>
+#include <blt/syscall.h>
 #include "dl-int.h"
 
 weak_alias (_dlopen, dlopen)
@@ -50,7 +52,7 @@ lib_t *file;
  * XXX this will break when the executable is at least partially
  * dynamically linked.
  */
-static void _init (void)
+void __dlinit (void)
 {
 	initialised = 1;
 	file = malloc (sizeof (lib_t));
@@ -61,12 +63,14 @@ static void _init (void)
 	file->symtab = elf_find_section_hdr (file->hdr, ".symtab");
 	file->symtab_data = elf_find_section_data (file->hdr, ".symtab");
 	file->symtab_size = elf_section_size (file->hdr, ".symtab");
+/*
 	file->dynstr = elf_find_section_hdr (file->hdr, ".dynstr");
 	file->dynstr_data = elf_find_section_data (file->hdr, ".dynstr");
 	file->dynstr_size = elf_section_size (file->hdr, ".dynstr");
 	file->dynsym = elf_find_section_hdr (file->hdr, ".dynsym");
 	file->dynsym_data = elf_find_section_data (file->hdr, ".dynsym");
 	file->dynsym_size = elf_section_size (file->hdr, ".dynsym");
+*/
 	file->next = NULL;
 }
 
@@ -84,7 +88,7 @@ static void _init (void)
  */
 void *_dlopen (const char *filename, int flag)
 {
-	char *c, debug[32];
+	char *c;
 	int i, size, fd, res, len;
 	struct stat buf;
 	lib_t *lib, *p;
@@ -92,7 +96,7 @@ void *_dlopen (const char *filename, int flag)
 	int (*fn)(void);
 
 	if (!initialised)
-		_init ();
+		__dlinit ();
 
 	__dl_error = NULL;
 	if (_stat (filename, &buf))
@@ -108,9 +112,9 @@ void *_dlopen (const char *filename, int flag)
 	lib = malloc (sizeof (lib_t));
 	lib->area = area_create (size, 0, (void **) &c, 0);
 	len = 0;
-	while ((res = read (fd, c + len, 0x2000)) > 0)
+	while ((res = _read (fd, c + len, 0x2000)) > 0)
 		len += res;
-	close (fd);
+	_close (fd);
 
 	lib->hdr = (elf32_hdr_t *) c;
 	pgm = (elf32_pgm_hdr_t *) ((unsigned int) lib->hdr + lib->hdr->e_phoff);
@@ -137,8 +141,8 @@ void *_dlopen (const char *filename, int flag)
 		free (lib);
 		return NULL;
 	}
-	if (fn = (int (*)(void)) (__dl_lookup_sym (lib, "_init") +
-			(unsigned int) lib->hdr))
+	if ((fn = (int (*)(void)) (__dl_lookup_sym (lib, "_init") +
+			(unsigned int) lib->hdr)))
 		res = (*fn) ();
 	if ((flag & ~RTLD_GLOBAL) || res)
 	{
@@ -169,8 +173,8 @@ int _dlclose (void *handle)
 		if (p->next != NULL)
 			p->next = lib->next;
 	}
-	if (fn = (void (*)(void)) (__dl_lookup_sym (lib, "_fini") +
-			(unsigned int) lib->hdr))
+	if ((fn = (void (*)(void)) (__dl_lookup_sym (lib, "_fini") +
+			(unsigned int) lib->hdr)))
 		(*fn) ();
 	area_destroy (lib->area);
 	free (handle);

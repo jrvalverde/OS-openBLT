@@ -31,8 +31,17 @@
 
 #define TELL_MAX_LEN     256
 
-int _tell_init (char *name, void (*func)(const char *));
-int tell_init (char *name, void (*func)(const char *));
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	int _tell_init (char *name, void (*func)(const char *));
+	int tell_init (char *name, void (*func)(const char *));
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 
