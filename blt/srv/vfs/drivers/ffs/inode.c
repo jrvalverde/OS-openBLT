@@ -93,49 +93,52 @@ static struct vnode *ffs_walk_one (struct vnode *parent, const char *path)
 	for (i = 0; i < NDADDR; i++)
 		if (di->di_db[i])
 		{
-			blk_read (data->dev, buf, fsbtodb (fs, di->di_db[i]),
-				BLKSIZE / data->dev->blksize);
-			for (offset = 0; offset < BLKSIZE; offset += direct->d_reclen)
-			{
-				direct = (struct ffs_direct *) (buf + offset);
-				if (!strcmp (direct->d_name, path))
-					return vget (parent->v_sb, direct->d_ino);
-			}
-		}
-	printf ("ffs_walk_one: failage 1!\n");
-
-	for (i = 0; i < NIADDR; i++)
-		if (di->di_ib[i])
-		{
-			printf ("ffs_walk_one: indirect %d\n", di->di_ib[i]);
-		}
-
-	free (buf);
-	printf ("ffs_walk_one: failage 2!\n");
-	return NULL;
+			blk_read (data->dev, buf, e %lld\n", vnode->v_vnid);
+#endif
+	free (vnode->v_data);
 }
 
-struct vnode *ffs_walk (struct vnode *parent, const char *path)
+static struct vnode *ffs_walk_one (struct vnode *parent, const char *path)
 {
-	char *name;
-	int i, j, len;
-	struct vnode *vn, *vnnext;
+	char *buf;
+	int i, offset;
+	struct ffs_super *fs;
+	struct ffs_super_data *data;
+	struct ffs_dinode *di;
+	struct ffs_direct *direct;
 
 #ifdef FFS_DEBUG
-	printf ("ffs_walk %s\n", path);
+	printf ("ffs_walk_one %s\n", path);
 #endif
-	vn = parent;
-	name = malloc ((len = strlen (path)) + 1);
-	strcpy (name, path);
+	data = parent->v_sb->sb_data;
+	fs = data->sbbuf;
+	di = parent->v_data;
+	buf = malloc (BLKSIZE);
 
-	for (i = 0; i < strlen (path); i = j + 1, vn = vnnext)
-	{
-		for (j = i; (name[j] != '/') && (j < len); j++) ;
-		name[j] = 0;
-		vnnext = ffs_walk_one (vn, name + i);
-		if (vn != parent)
-			vput (vn);
-	}
-	return vn;
+	for (i = 0; i < NDADDR; i++)
+		if (di->di_db[i])
+		{
+			blk_read (data->dev, buf, e %lld\n", vnode->v_vnid);
+#endif
+	free (vnode->v_data);
 }
 
+static struct vnode *ffs_walk_one (struct vnode *parent, const char *path)
+{
+	char *buf;
+	int i, offset;
+	struct ffs_super *fs;
+	struct ffs_super_data *data;
+	struct ffs_dinode *di;
+	struct ffs_direct *direct;
+
+#ifdef FFS_DEBUG
+	printf ("ffs_walk_one %s\n", path);
+#endif
+	data = parent->v_sb->sb_data;
+	fs = data->sbbuf;
+	di = parent->v_data;
+	buf = malloc (BLKSIZE);
+
+	for (i = 0; i < NDADDR; i++)
+		if (di->di_db[
