@@ -29,7 +29,6 @@
 */
 #include <i386/io.h>
 #include "kernel.h"
-#include "queue.h"
 #include "memory.h"
 #include "resource.h"
 #include "boot.h"
@@ -53,10 +52,10 @@ void terminate(void)
     task_t *t = current, *task;
 	resnode_t *p;
 	extern resnode_t *resource_list;
-	extern queue_t *run_queue;
     
     //kprintf("Task %X terminated.",current->rsrc.id);
     live_tasks--;    
+	rsrc_enqueue(reaper_queue,current);
     current->flags = tDEAD;
 
 	p = resource_list;
@@ -65,11 +64,8 @@ void terminate(void)
 		if (p->resource->type == RSRC_TASK)
 		{
 			task = (task_t *) p->resource;
-			if ((task->flags == tSLEEP_THREAD) && (task->sleeping_on ==
-					current->rsrc.id))
-			{
-				task->flags = tREADY;
-				queue_addTail (run_queue, task, 0);
+			if(task->waiting_on == ((resource_t*)current)){
+				rsrc_enqueue(run_queue, task);
 			}
 		}
 		p = p->next;
@@ -80,45 +76,12 @@ void terminate(void)
     asm("hlt");
 }
 
-
-
-struct _ll time_first = { NULL, NULL, 0, NULL };
-
-
 void sleep(int ticks)
 {
-    struct _ll *l,*n;
-    int when = ticks + kernel_timer;
-
-    if(when > kernel_timer){
-        n = kmalloc16();
-        n->t = current;
-        n->when = when;
-        if(!time_first.next){
-            time_first.next = n;
-            n->next = NULL;
-            n->prev = NULL;
-        } else { 
-            for(l = time_first.next;l;l=l->next){
-                if(when < l->when){
-                    n->prev = l->prev;
-                    n->next = l;
-                    l->prev = l;
-                    l->prev->next = n;
-                    break;
-                }
-                if(!(l->next)){
-                    l->next = n;
-                    n->prev = l;
-                    n->next = NULL;
-                }
-            }
-        }
-        current->flags = tSLEEP_TIMER;
-/*    kprintf("sleeping %d / %d -> %d\n",current->rid, kernel_timer, when);
- */
-    }
-    swtch();
+	if(ticks) {
+		rsrc_enqueue_ordered(timer_queue, current, kernel_timer + ticks);
+	}
+	swtch();	
 }
 
 #define p_uint32(n) (esp[n])
@@ -144,11 +107,11 @@ void syscall(regs r, volatile uint32 eip, uint32 cs, uint32 eflags,
         
         t = new_thread(current->addr, p_uint32(1), 0);
 		t->text_area = current->text_area;
-        for(i=0;current->name[i] && i<31;i++) t->name[i] = current->name[i];
+        for(i=0;current->rsrc.name[i] && i<31;i++) t->rsrc.name[i] = current->rsrc.name[i];
         if(i<30){
-            t->name[i++] = '+';
+            t->rsrc.name[i++] = '+';
         }
-        t->name[i] = 0;    
+        t->rsrc.name[i] = 0;    
         t->rsrc.owner = current;
         
         res = t->rsrc.id;

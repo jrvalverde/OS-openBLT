@@ -33,6 +33,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <sys/stat.h>
 #include <blt/syscall.h>
 #include <blt/namer.h>
@@ -111,6 +112,8 @@ int main (void)
 	struct dirent *dirent;
 	struct stat buf;
 	char c;
+	void *ptr;
+	int (*strlen_fn)(char *);
 
 	__libc_init_console ();
 	__libc_init_vfs ();
@@ -129,6 +132,8 @@ int main (void)
 	while ((dirent = readdir (dir1)) != NULL)
 		printf ("readdir says %d %s\n", dirent->d_fileno, dirent->d_name);
 	closedir (dir1);
+*/
+/*
 	i = open ("/boot/rc.boot", O_RDONLY, 0);
 	//i = open ("/boot/text", O_RDONLY, 0);
 	if (i >= 0)
@@ -160,6 +165,13 @@ int main (void)
 		printf ("we got %d\n", c);
 	}
 */
+
+	ptr = dlopen ("/boot/libc.so", 0);
+	printf ("ptr is %x\n", ptr);
+	strlen_fn = dlsym (ptr, "strlen");
+	printf ("strlen is %x\n", strlen_fn);
+	printf ("len is %d\n", (*strlen_fn) ("foobarbaz"));
+	dlclose (ptr);
 
 	__libc_fini_vfs ();
 	return 0;

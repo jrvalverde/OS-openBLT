@@ -25,11 +25,16 @@
 ** (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
+
+#include <stdlib.h>
 #include <blt/types.h>
 #include <blt/syscall.h>
+#include <blt/libsyms.h>
 #include "malloc.h"
 
-void __malloc_initialize();
+weak_alias (_malloc, malloc)
+weak_alias (_free, free)
+weak_alias (_realloc, realloc)
 
 static unsigned int __sbrk_max;
 static unsigned int __sbrk_cur;
@@ -54,7 +59,7 @@ void *sbrk(int size)
 
 int sem_malloc = 0;
 
-void *malloc(size_t size)
+void *_malloc(size_t size)
 {
     void *r;
     sem_acquire(sem_malloc);
@@ -63,14 +68,14 @@ void *malloc(size_t size)
     return r;
 }
 
-void free(void *ptr)
+void _free(void *ptr)
 {
     sem_acquire(sem_malloc);
     __free(ptr);
     sem_release(sem_malloc);
 }
 
-void *realloc(void *ptr, size_t size)
+void *_realloc(void *ptr, size_t size)
 {
     void *r;
     sem_acquire(sem_malloc);

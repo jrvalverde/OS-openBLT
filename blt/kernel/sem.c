@@ -29,12 +29,9 @@
 #include "resource.h"
 #include "memory.h"
 
-extern queue_t *run_queue;
-
 int sem_create(int count) 
 {
-    sem_t *s = (sem_t *) kmalloc32();
-    s->queue = queue_new(0);
+    sem_t *s = (sem_t *) kmalloc(sem_t);
     s->count = count;
 	rsrc_bind(&s->rsrc, RSRC_SEM, current);
 	
@@ -43,7 +40,7 @@ int sem_create(int count)
 
 int sem_destroy(int sem)
 {
-
+	return -1;
 }
 
 int sem_acquire(int id) 
@@ -58,10 +55,7 @@ int sem_acquire(int id)
         s->count--;
     } else {
         s->count--;
-        queue_addTail(s->queue,current,0);
-        current->sleeping_on = id;
-        current->flags = tSLEEP_SEM;
-        swtch();
+		wait_on((resource_t *) s); /* XXX handle status */
     }
     return ERR_NONE;
 }
@@ -77,11 +71,9 @@ int sem_release(int id)
     }
 
     s->count++;
-
-    if(t = queue_removeHeadT(s->queue,&x,task_t*)){
-        t->flags = tREADY;
-        queue_addTail(run_queue, t, 0);            
-        preempt();             
+	
+    if(t = rsrc_dequeue((resource_t*)s)){
+		preempt(t);
     }
 
     return ERR_NONE;

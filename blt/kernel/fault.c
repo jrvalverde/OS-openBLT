@@ -28,7 +28,6 @@
 
 #include <i386/io.h>
 #include "kernel.h"
-#include "queue.h"
 #include "memory.h"
 #include "smp.h"
 #include "init.h"
@@ -43,7 +42,6 @@
 #include "port.h"
 #include "task.h"
 #include "aspace.h"
-extern queue_t *run_queue;
 
 static char *etable[] = {
     "Divide-by-zero",
@@ -104,8 +102,9 @@ void faultE(uint32 number,
     asm("mov %%cr3, %0":"=r" (_cr3));
     kprintf("   cr2 = %x   cr3 = %x error = %x",_cr2,_cr3,error);
     kprintf("");
-    kprintf("Task %X (%s) crashed.",current->rsrc.id,current->name);
+    kprintf("Task %X (%s) crashed.",current->rsrc.id,current->rsrc.name);
 
+	rsrc_enqueue(reaper_queue, current);
 #ifdef DEBUG_ON_FAULT
     current->flags = tDEAD;
     k_debugger(&r, eip, cs, eflags);
@@ -128,7 +127,9 @@ void fault(uint32 number,
     print_regs(&r, eip, cs, eflags);
 
     kprintf("");
-    kprintf("Task %X (%s) crashed.",current->rsrc.id,current->name);
+    kprintf("Task %X (%s) crashed.",current->rsrc.id,current->rsrc.name);
+	
+	rsrc_enqueue(reaper_queue, current);
 #ifdef DEBUG_ON_FAULT
     if(number != 2){
         current->flags = tDEAD;
@@ -148,9 +149,7 @@ void irq_dispatch(regs r, uint32 number)
     mask_irq(number);    
     if(irq_task_map[number]){
         if(irq_task_map[number]->flags == tSLEEP_IRQ){
-            irq_task_map[number]->flags = tREADY;
-            queue_addHead(run_queue, irq_task_map[number], 0);            
-            preempt();            
+            preempt(irq_task_map[number]);            
         }
     }    
 }
@@ -172,24 +171,21 @@ void pulse (void)
 
 void timer_irq(regs r, uint32 eip, uint32 cs, uint32 eflags)
 {
-    struct _ll *n = time_first.next;
+	task_t *task;
     kernel_timer++;
     
-    while(n && (n->when <= kernel_timer)){
-            /*     kprintf("rescheduling %d\n",n->t->rid);*/
-        n->t->flags = tREADY;
-        queue_addTail(run_queue, n->t, 0);
-
-        time_first.next = n->next;
-        if(n->next) n->next->prev = NULL;
-        kfree16(n);
-        n = time_first.next;
-    }
+	while(task = timer_queue->queue_head){
+		if(task->wait_time <= kernel_timer){
+			task = rsrc_dequeue(timer_queue);
+			rsrc_enqueue(run_queue, task);
+		} else {
+			break;
+		}
+	}
 #ifdef PULSE
     pulse ();
 #endif    
-    swtch();
-    
+    swtch();    
 }
 
 extern void __null_irq(void);

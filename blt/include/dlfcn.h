@@ -1,6 +1,6 @@
 /* $Id$
 **
-** Copyright 1998 Brian J. Swetland
+** Copyright 1999 Sidney Cammeresi
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -26,21 +26,21 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _SEM_H
-#define _SEM_H
+#ifndef _DLFCN_H_
+#define _DLFCN_H_
 
-#include "resource.h"
+#define RTLD_GLOBAL     1
+#define RTLD_LAZY       2
+#define RTLD_NOW        4
 
-struct __sem_t 
-{
-	resource_t rsrc;
-
-    int count;
-};
-
-int sem_create(int count);
-int sem_destroy(int sem);
-int sem_acquire(int id);
-int sem_release(int id);
+void *_dlopen (const char *filename, int flag);
+void *dlopen (const char *filename, int flag);
+const char *_dlerror (void);
+const char *dlerror (void);
+void *_dlsym (void *handle, const char *symbol);
+void *dlsym (void *handle, const char *symbol);
+int _dlclose (void *handle);
+int dlclose (void *handle);
 
 #endif
+

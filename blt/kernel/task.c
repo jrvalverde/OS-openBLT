@@ -34,10 +34,20 @@ extern char *gdt;
 void thread_bootstrap(void);
 void kthread_bootstrap(void);
 
+uint32 wait_on(resource_t *rsrc)
+{
+	task_t *task = current;
+	task->status = 0;
+	rsrc_enqueue(rsrc, task);	
+	swtch();
+	return current->status;
+}
+
+
 /* create a new task, complete with int stack */
 task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel) 
 {
-    task_t *t = kmalloc128();	
+    task_t *t = kmalloc(task_t);	
 	uint32 *SP;
 	
 	t->kstack = kgetpages(1,7);
@@ -90,9 +100,11 @@ task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel)
 	
 	t->resources = NULL;
     t->addr = a;
-    t->name[0] = 0;
     t->irq = 0;
-    
+    t->flags = tREADY;
+	t->waiting_on = NULL;
+	t->queue_next = NULL;
+	t->queue_prev = NULL;
     return t;
 }
 
@@ -107,7 +119,7 @@ int thr_spawn (int area_id, int addr, char * const *argv, char * const *envp,
 	if ((text = rsrc_find_area (area_id)) == NULL)
 		return -1;
 
-	strlcpy (current->name, argv[0], sizeof (current->name));
+	rsrc_set_name((resource_t*)current,argv[0]);
 	a = current->addr;
 
 	/* beware, the old argv and envp are no good any longer. */

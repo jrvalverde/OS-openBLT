@@ -60,8 +60,8 @@ int thr_detach (unsigned int eip)
 		*((char *) dst + i) = *((char *) (orig_heap->virt_addr * 0x1000) + i);
 	area_destroy (a, clone);
 
-	strlcpy (t->name, current->name, sizeof (t->name));
-	strlcat (t->name, "+", sizeof (t->name));
+	strlcpy (t->rsrc.name, current->rsrc.name, sizeof (t->rsrc.name));
+	strlcat (t->rsrc.name, "+", sizeof (t->rsrc.name));
 
 	rsrc_set_owner (&a->rsrc, t);
 	rsrc_set_owner (&t->rsrc, t);
@@ -70,9 +70,13 @@ int thr_detach (unsigned int eip)
 
 int thr_join (int thr_id, int options)
 {
-	current->sleeping_on = thr_id;
-	current->flags = tSLEEP_THREAD;
-	swtch ();
-	return 0;
+	task_t *task = rsrc_find_task(thr_id);
+	
+	if(task) {
+		wait_on(task);
+		return ERR_NONE;
+	} else {
+		return ERR_RESOURCE;
+	}
 }
 

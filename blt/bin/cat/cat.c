@@ -1,6 +1,6 @@
 /* $Id$
 **
-** Copyright 1998 Brian J. Swetland
+** Copyright 1999 Sidney Cammeresi
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -26,21 +26,37 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _SEM_H
-#define _SEM_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <fcntl.h>
 
-#include "resource.h"
-
-struct __sem_t 
+int main (int argc, char **argv)
 {
-	resource_t rsrc;
+	char *buf;
+	int fd, res;
 
-    int count;
-};
+	__libc_init_console ();
+	__libc_init_vfs ();
 
-int sem_create(int count);
-int sem_destroy(int sem);
-int sem_acquire(int id);
-int sem_release(int id);
+	if (argc == 1)
+	{
+		printf ("cat: must specify a file\n");
+		return -1;
+	}
+	buf = malloc (256);
+	fd = open (argv[1], O_RDONLY, 0);
+	if (fd < 0)
+	{
+		printf ("cat: no such file or directory: %s\n", argv[1]);
+		return 0;
+	}
+	while (res = read (fd, buf, 255))
+	{
+		buf[res] = 0;
+		printf (buf);
+	}
+	close (fd);
 
-#endif
+	return 0;
+}
+

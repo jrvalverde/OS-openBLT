@@ -1,6 +1,6 @@
 /* $Id$
 **
-** Copyright 1998 Brian J. Swetland
+** Copyright 1999 Sidney Cammeresi
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -26,21 +26,51 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _SEM_H
-#define _SEM_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <dirent.h>
 
-#include "resource.h"
-
-struct __sem_t 
+static int dirent_compare (const void *a, const void *b)
 {
-	resource_t rsrc;
+	const struct dirent *c, *d;
 
-    int count;
-};
+	c = a, d = b;
+	return strcmp (c->d_name, d->d_name);
+}
 
-int sem_create(int count);
-int sem_destroy(int sem);
-int sem_acquire(int id);
-int sem_release(int id);
+int main (int argc, char **argv)
+{
+	char *path;
+	int i, j, k, l, maxlen, maxnum;
+	struct dirent *ent[32];
+	DIR *dir;
 
-#endif
+	__libc_init_console ();
+	__libc_init_vfs ();
+
+	path = (argc == 1) ? "/" : argv[1];
+	i = maxlen = 0;
+	dir = opendir (path);
+	while ((ent[i] = readdir (dir)) != NULL)
+	{
+		maxlen = (strlen (ent[i]->d_name) > maxlen) ? strlen (ent[i]->d_name) :
+			maxlen;
+		i++;
+	}
+	closedir (dir);
+	maxnum = 80 / (maxlen + 2);
+	qsort (*ent, i, sizeof (struct dirent), dirent_compare);
+	for (k = 0; k < i; k+= j)
+	{
+		for (j = 0; ((j + k) < i) && (j < maxnum); j++)
+		{
+			printf ("%s", ent[j + k]->d_name);
+			for (l = strlen (ent[j + k]->d_name); l < (maxlen + 2); l++)
+				printf (" ");
+		}
+		printf ("\n");
+	}
+
+	return 0;
+}
+

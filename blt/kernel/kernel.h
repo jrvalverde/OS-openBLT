@@ -61,7 +61,8 @@ void kprintf(char *fmt, ...);
 char *kgetline(char *line, int maxlen);
 void krefresh(void);
 
-void preempt(void);
+void preempt(task_t *t);
+void reschedule(task_t *t);
 void swtch(void);
 
 
@@ -77,5 +78,9 @@ extern struct _ll time_first;
 
 extern char *idt, *gdt;
 extern uint32 _cr3;
+
+extern resource_t *run_queue;
+extern resource_t *reaper_queue;
+extern resource_t *timer_queue;
 
 #endif

@@ -26,5 +26,31 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <string.h>
+#include <stddef.h>
+#include <errno.h>
+#include <blt/libsyms.h>
+
 int errno;
+
+static char *msgs[] =
+{
+	NULL,
+	"permission denied",
+	"no such file or directory",
+	"no such process",
+	"interrupted system call",
+	"i/o error",
+	"device not configured",
+	"argument list too long",
+	"exec format error"
+};
+
+weak_alias (_strerror, strerror)
+
+char *_strerror (int errnum)
+{
+	return (errnum < (sizeof (msgs) / sizeof (char *))) ? msgs[errnum] :
+		NULL;
+}
 

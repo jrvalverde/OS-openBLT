@@ -35,18 +35,23 @@
 #define tRUNNING      1
 #define tREADY        2
 #define tDEAD         3
-#define tSLEEP_PORT   4
+#define tWAITING      4
 #define tSLEEP_IRQ    5
 #define tSLEEP_TIMER  6
-#define tSLEEP_SEM    7
-#define tSLEEP_THREAD 8
 
 struct __task_t {
     struct __resource_t rsrc;
+
+	/* wait_queue support */
+	struct __resource_t *waiting_on;
+	struct __task_t *queue_next;
+	struct __task_t *queue_prev;
+	uint32 status; /* status code for the task that has just been awakened */
+	uint32 wait_time; /* for timer queues */
+	
     char *iomap;
     struct __aspace_t *addr;
-    uint32 flags;
-    uint32 sleeping_on;
+	uint32 flags;
     uint32 irq;
 	uint32 esp; /* saved stack */
 	uint32 esp0; /* kernel entry stack -- to stuff in the TSS */
@@ -54,15 +59,16 @@ struct __task_t {
 	uint32 scount;
 	void *kstack, *ustack;
     resnode_t *resources;
-    char name[32];
     int text_area;
 #ifdef __SMP__
     int has_cpu, processor, last_processor;
 #endif
-/*    struct __task_t *parent; ... sameas rsrc.owner */
 };
 
 task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel);
+void task_wait_on(task_t *task, resource_t *rsrc);
+uint32 wait_on(resource_t *rsrc);
+
 void task_call(task_t *t);
 int thr_spawn (int area_id, int addr, char * const *argv, char * const *envp,
     volatile uint32 **stack);

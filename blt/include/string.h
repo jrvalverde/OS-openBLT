@@ -48,4 +48,7 @@ void *memmove(void *dest, const void *src, size_t n);
 int bcmp (const void *s, const void *t, size_t len);
 void bzero (void *b, size_t len);
 
+char *_strerror (int errnum);
+char *strerror (int errnum);
+
 #endif

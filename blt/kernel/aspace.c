@@ -79,7 +79,7 @@ aspace_t *aspace_create(void)
     uint32 phys;
 	uint32 *raw;
     
-    aspace_t *a = kmalloc64();
+    aspace_t *a = kmalloc(aspace_t);
 	raw = kgetpages2(2,3,&phys);
 	a->pdir = raw;
 	a->ptab = &raw[1024];
@@ -177,33 +177,33 @@ int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 fl
     }
     
     /* create a fresh pagegroup and enough phys_page_t's */    
-    pg = (pagegroup_t *) kmalloc32();
+    pg = (pagegroup_t *) kmalloc(pagegroup_t);
     pg->flags = flags;
     pg->refcount = 1;
     pg->size = size;
     pg->pages = NULL;
     for(i=0;i<size;i+=6){
-        pp = (phys_page_t *) kmalloc32();
+        pp = (phys_page_t *) kmalloc(phys_page_t);
         pp->lockcount = 0;
         pp->next = pg->pages;
         pg->pages = pp;
     };
     
     /* create an area to ref the pagegroup */
-    area = (area_t *) kmalloc32();
+    area = (area_t *) kmalloc(area_t);
     area->pgroup = pg;
     area->virt_addr = at;
     area->length = size;
     area->maxlength = size;
     
     /* link this area into the new pagegroup */
-    an = (anode_t *) kmalloc16();
+    an = (anode_t *) kmalloc(anode_t);
     an->next = an->prev = NULL;
     an->area = area;
     pg->areas = an;
     
     /* link this area into the aspace's arealist */
-    an = (anode_t *) kmalloc16();
+    an = (anode_t *) kmalloc(anode_t);
     if(aspace->areas){
         aspace->areas->prev = an;
     }
@@ -259,27 +259,27 @@ int area_create_uber(off_t size, void *addr)
     p = ((uint32) addr) / 0x1000;
     
     /* create a fresh pagegroup and enough phys_page_t's */    
-    pg = (pagegroup_t *) kmalloc32();
+    pg = (pagegroup_t *) kmalloc(pagegroup_t);
     pg->flags = 0x1010;
     pg->refcount = 1;
     pg->size = size;
     pg->pages = NULL;
     for(i=0;i<size;i+=6){
-        pp = (phys_page_t *) kmalloc32();
+        pp = (phys_page_t *) kmalloc(phys_page_t);
         pp->lockcount = 0;
         pp->next = pg->pages;
         pg->pages = pp;
     };
     
     /* create an area to ref the pagegroup */
-    area = (area_t *) kmalloc32();
+    area = (area_t *) kmalloc(area_t);
     area->pgroup = pg;
     area->virt_addr = at;
     area->length = size;
     area->maxlength = size;
     
     /* link this area into the new pagegroup */
-    an = (anode_t *) kmalloc16();
+    an = (anode_t *) kmalloc(anode_t);
     an->next = an->prev = NULL;
     an->area = area;
     pg->areas = an;
@@ -330,7 +330,7 @@ int area_clone(aspace_t *aspace, int area_id, off_t virt, void **addr, uint32 fl
 /* xxx lock area1 and area1->pgroup */
         
     /* allocate the clone area and init it from the orig */
-    area1 = (area_t *) kmalloc32();
+    area1 = (area_t *) kmalloc(area_t);
     area0->pgroup->refcount++;
     area1->pgroup = area0->pgroup;
     size = area1->length = area0->length;
@@ -338,7 +338,7 @@ int area_clone(aspace_t *aspace, int area_id, off_t virt, void **addr, uint32 fl
     area1->virt_addr = at;
     
     /* link this area into the new pagegroup */
-    an = (anode_t *) kmalloc16();
+    an = (anode_t *) kmalloc(anode_t);
     area0->pgroup->areas->prev = an;
     an->next = area0->pgroup->areas;
     an->prev = NULL;
@@ -346,7 +346,7 @@ int area_clone(aspace_t *aspace, int area_id, off_t virt, void **addr, uint32 fl
     area0->pgroup->areas = an;
    
     /* link this area into the aspace's arealist */
-    an = (anode_t *) kmalloc16();
+    an = (anode_t *) kmalloc(anode_t);
     if(aspace->areas){
         aspace->areas->prev = an;
     }
@@ -417,7 +417,7 @@ int area_resize(aspace_t *aspace, int area_id, off_t size)
     
     while(size){
         if(!ppo){
-            pp0 = (phys_page_t *) kmalloc32();
+            pp0 = (phys_page_t *) kmalloc(phys_page_t);
             pp0->next = NULL;
             pp->next = pp0;
             pp0->lockcount = 0;

@@ -1,6 +1,6 @@
 /* $Id$
 **
-** Copyright 1998 Brian J. Swetland
+** Copyright 1998-1999 Sidney Cammeresi
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -26,21 +26,53 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _SEM_H
-#define _SEM_H
+#include <stddef.h>
+#include <elf.h>
+#include <blt/libsyms.h>
 
-#include "resource.h"
-
-struct __sem_t 
+static void run_all (const char *name)
 {
-	resource_t rsrc;
+/*
+	int i;
 
-    int count;
-};
+	for (i = 0; i < symtablen; i++)
+		if (!strcmp (strtab + symtab[i].st_name, name) &&
+				(symtab[i].st_shndx != SHN_UNDEF))
+			(*((void (*)(void)) symtab[i].st_value)) ();
+*/
+}
 
-int sem_create(int count);
-int sem_destroy(int sem);
-int sem_acquire(int id);
-int sem_release(int id);
+elf32_sec_hdr_t *elf_find_section_hdr (elf32_hdr_t *hdr, char *name)
+{
+	char *section_name;
+	int i;
+	elf32_sec_hdr_t *sec_hdr;
 
-#endif
+	sec_hdr = (elf32_sec_hdr_t *) ((unsigned int) hdr + hdr->e_shoff +
+	    hdr->e_shstrndx * hdr->e_shentsize);
+	section_name = (char *) ((unsigned int) hdr + sec_hdr->sh_offset);
+	sec_hdr = (elf32_sec_hdr_t *) ((unsigned int) hdr + hdr->e_shoff);
+	for (i = 0; i < hdr->e_shnum; i++, sec_hdr = (elf32_sec_hdr_t *)
+	        ((unsigned int) sec_hdr + hdr->e_shentsize))
+	    if (!strcmp (section_name + sec_hdr->sh_name, name))
+	        return sec_hdr;
+	return NULL;
+}
+
+void *elf_find_section_data (elf32_hdr_t *hdr, char *name)
+{
+	elf32_sec_hdr_t *sec_hdr;
+
+	sec_hdr = _elf_find_section_hdr (hdr, name);
+	return (sec_hdr == NULL) ? NULL : (void *) ((unsigned int) hdr +
+	    sec_hdr->sh_offset);
+}
+
+int elf_section_size (elf32_hdr_t *hdr, char *name)
+{
+	elf32_sec_hdr_t *sec_hdr;
+
+	sec_hdr = _elf_find_section_hdr (hdr, name);
+	return (sec_hdr == NULL) ? 0 : sec_hdr->sh_size;
+}
+

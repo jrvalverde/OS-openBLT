@@ -30,6 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <unistd.h>
+#include <sys/stat.h>
 
 const static char *copyright = "\
 OpenBLT Release I (built " __DATE__ ", " __TIME__ ")
@@ -38,18 +40,41 @@ OpenBLT Release I (built " __DATE__ ", " __TIME__ ")
 
 char **params;
 
-void run (void)
+void run(void)
 {
 	extern char _end[], __bss_start[];
 
     __libc_init_console ();
     __libc_init_vfs ();
     execve (params[0], params, NULL);
-	if ((errno == ENOENT) || (errno == ENOTDIR) || (errno == ENOSYS))
-		printf ("bltsh: no such file or directory: %s\n", params[0]);
-	else
-    	printf ("execve failed %d\n", errno);
+	//printf ("execve failed %d\n", errno);
+	printf ("bltsh: %s: %s\n", params[0], strerror (errno));
     os_terminate (1);
+}
+
+void do_command(int argc, char **argv)
+{
+	struct stat s;
+	
+	if(!strcmp(argv[0], "exit")) os_terminate (1);
+	
+	if(!stat(argv[0],&s)){
+		thr_join (thr_detach (run), 0);
+	} else {
+		/* try our "path" */
+		char *x = (char *) malloc(7 + strlen(argv[0]));
+		
+		strcpy(x,"/boot/");
+		strcpy(x+6,argv[0]);
+		free(argv[0]);
+		argv[0] = x;
+		
+		if(!stat(x,&s)){
+			thr_join (thr_detach (run), 0);
+		} else {
+			printf("bltsh: no such file or directory: %s\n", argv[0]);
+		}
+	}	
 }
 
 int main (void)
@@ -60,8 +85,6 @@ int main (void)
 	__libc_init_console ();
 	__libc_init_vfs ();
 	__libc_init_console_input ();
-
-	//printf ("\n\n%s\n", copyright);
 
 	for (;;)
 	{
@@ -86,11 +109,6 @@ int main (void)
 				if ((*line != '#') && *line)
 				{
 					params = malloc (sizeof (char *) * p_argc);
-/*
-					params[0] = malloc (strlen (line) + 1);
-					strcpy (params[0], line);
-					params[1] = NULL;
-*/
 					c = line;
 					for (i = 0; i < p_argc - 1; i++)
 					{
@@ -100,9 +118,12 @@ int main (void)
 						c += len + 1;
 					}
 					params[p_argc - 1] = NULL;
-					if (!strcmp (params[0], "exit"))
-						os_terminate (1);
-					thr_join (thr_detach (run), 0);
+					
+					do_command(p_argc, params);
+					
+					for(i=0;i<p_argc;i++)
+						free(params[i]);
+					free(params);
 				}
 				len = 0;
 				break;

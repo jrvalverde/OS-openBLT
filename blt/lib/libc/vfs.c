@@ -169,7 +169,7 @@ DIR *_opendir (const char *name)
 		errno = vr.errno;
 		return NULL;
 	}
-	_printf ("libc: opendir got fd %d\n", vr.data[0]);
+	//_printf ("libc: opendir got fd %d\n", vr.data[0]);
 	dirp = malloc (sizeof (DIR));
 	dirp->fd = vr.data[0];
 	dirp->hoffset = 0;

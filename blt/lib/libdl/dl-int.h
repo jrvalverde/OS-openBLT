@@ -1,6 +1,6 @@
 /* $Id$
 **
-** Copyright 1998 Brian J. Swetland
+** Copyright 1999 Sidney Cammeresi
 ** All rights reserved.
 **
 ** Redistribution and use in source and binary forms, with or without
@@ -26,21 +26,19 @@
 ** THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _SEM_H
-#define _SEM_H
+#ifndef DL_INT_H
+#define DL_INT_H
 
-#include "resource.h"
+#include <elf.h>
 
-struct __sem_t 
+typedef struct __lib_t
 {
-	resource_t rsrc;
-
-    int count;
-};
-
-int sem_create(int count);
-int sem_destroy(int sem);
-int sem_acquire(int id);
-int sem_release(int id);
+	elf32_hdr_t *hdr;
+	elf32_sec_hdr_t *dynstr, *dynsym;
+	elf32_sym_t *dynsym_data;
+	char *dynstr_data;
+	int area, dynsym_size, dynstr_size;
+} lib_t;
 
 #endif
+

@@ -35,6 +35,8 @@
 #include "dfp.h"
 #include "vga.h"
 
+static int WITH_NET = 1;
+
 void keythread(void);
 
 int myX = 2;
@@ -81,7 +83,7 @@ int msgcount = 0;
 
 int sem_fish = 0, sem_msgs = 0;
 
-void printf(char *fmt,...)
+void lprintf(char *fmt,...)
 {
 #ifdef LOGGING
     va_list pvar;
@@ -168,48 +170,53 @@ void newfish(int x, int y, int dx, int dy, char *n);
 
 void pingtank(int tx, int ty)
 {
-    net_fish f;
-    msg_hdr_t msg;
-    f.cmd.cmd = NET_SEND;
-    f.cmd.port = 5049;
-    f.dfp.base.src_tank_x = myX;
-    f.dfp.base.src_tank_y = myY;
-    f.dfp.base.dst_tank_x = tx;
-    f.dfp.base.dst_tank_y = ty;
-    f.dfp.base.size = htons(DFP_SIZE_LOCATE);
-    f.dfp.base.type = DFP_PKT_PING;
-    f.dfp.base.pad = 0;
-    f.dfp.base.version = htons(DFP_VERSION);
-    msg.flags = 0;
-    msg.src = port_fish;
-    msg.dst = port_net;
-    msg.size = sizeof(dfp_base)+8;
-    msg.data = &f;
-    port_send(&msg);
+	if(WITH_NET){
+		net_fish f;
+		msg_hdr_t msg;
+		f.cmd.cmd = NET_SEND;
+		f.cmd.port = 5049;
+		f.dfp.base.src_tank_x = myX;
+		f.dfp.base.src_tank_y = myY;
+		f.dfp.base.dst_tank_x = tx;
+		f.dfp.base.dst_tank_y = ty;
+		f.dfp.base.size = htons(DFP_SIZE_LOCATE);
+		f.dfp.base.type = DFP_PKT_PING;
+		f.dfp.base.pad = 0;
+		f.dfp.base.version = htons(DFP_VERSION);
+		msg.flags = 0;
+		msg.src = port_fish;
+		msg.dst = port_net;
+		msg.size = sizeof(dfp_base)+8;
+		msg.data = &f;
+		port_send(&msg);
+	}
 }
 
 void initiate(dfp_pkt_transfer *send, int tx, int  ty)
 {
-    net_fish f;
-    msg_hdr_t msg;
-    f.cmd.cmd = NET_SEND;
-    f.cmd.port = 5049;
-    f.dfp.base.src_tank_x = myX;
-    f.dfp.base.src_tank_y = myY;
-    f.dfp.base.dst_tank_x = tx;
-    f.dfp.base.dst_tank_y = ty;
-    f.dfp.base.size = ntohs(DFP_SIZE_TRANSFER);
-    f.dfp.base.type = DFP_PKT_SEND_FISH;
-    f.dfp.base.pad = 0;
-    f.dfp.base.version = htons(DFP_VERSION);
-    memcpy(&(f.dfp.uid), &(send->uid), 6);
-    memcpy(&(f.dfp.fish), &(send->fish), sizeof(dfp_fish));
-    msg.flags = 0;
-    msg.src = port_fish;
-    msg.dst = port_net;
-    msg.size = DFP_SIZE_TRANSFER + 8;
-    msg.data = &f;
-    port_send(&msg);
+	if(WITH_NET){
+		net_fish f;
+		msg_hdr_t msg;
+		f.cmd.cmd = NET_SEND;
+		f.cmd.port = 5049;
+		f.dfp.base.src_tank_x = myX;
+		f.dfp.base.src_tank_y = myY;
+		f.dfp.base.dst_tank_x = tx;
+		f.dfp.base.dst_tank_y = ty;
+		f.dfp.base.size = ntohs(DFP_SIZE_TRANSFER);
+		f.dfp.base.type = DFP_PKT_SEND_FISH;
+		f.dfp.base.pad = 0;
+		f.dfp.base.version = htons(DFP_VERSION);
+		memcpy(&(f.dfp.uid), &(send->uid), 6);
+		memcpy(&(f.dfp.fish), &(send->fish), sizeof(dfp_fish));
+		msg.flags = 0;
+		msg.src = port_fish;
+		msg.dst = port_net;
+		msg.size = DFP_SIZE_TRANSFER + 8;
+		msg.data = &f;
+		port_send(&msg);
+	}
+
 }
 
 char *types[] = { "PING", "PING", "SEND", "ACK", "NACK", "SYNC" };
@@ -230,7 +237,7 @@ void dofish(dfp_pkt_transfer *dfp)
     }
 
     
-  if(dfp->base.type == DFP_PKT_SYNC_FISH)  printf("fish: s(%d,%d) d(%d,%d) s=%d %s",
+  if(dfp->base.type == DFP_PKT_SYNC_FISH)  lprintf("fish: s(%d,%d) d(%d,%d) s=%d %s",
            dfp->base.src_tank_x, dfp->base.src_tank_y,
            dfp->base.dst_tank_x, dfp->base.dst_tank_y,
            dfp->base.size,
@@ -261,7 +268,7 @@ void dofish(dfp_pkt_transfer *dfp)
         break;
                
     case DFP_PKT_PONG :
-        printf("Pong from %d,%d",dfp->base.src_tank_x,dfp->base.src_tank_y);
+        lprintf("Pong from %d,%d",dfp->base.src_tank_x,dfp->base.src_tank_y);
         settank(dfp->base.src_tank_x,dfp->base.src_tank_y,1);
 /*        for(i=0;i<4;i++){
             if((cnxn[i].tx == dfp->base.src_tank_x) &&
@@ -277,11 +284,11 @@ void dofish(dfp_pkt_transfer *dfp)
         strncpy(n2,dfp->fish.name,16);
         n2[16]=0;
         if(recluse){
-            printf("Ignoring \"%s\" from (%d,%d)",n2,
+            lprintf("Ignoring \"%s\" from (%d,%d)",n2,
                    dfp->base.src_tank_x, dfp->base.src_tank_y);
             break;
         }
-            /* printf("    : UID %X%X%X%X%X%X @(%d,%d) d(%d,%d) ttl=%d, name=\"%s\"",
+            /* lprintf("    : UID %X%X%X%X%X%X @(%d,%d) d(%d,%d) ttl=%d, name=\"%s\"",
                dfp->uid.creator_tank_x, dfp->uid.creator_tank_y,
                dfp->uid.timestamp[0], dfp->uid.timestamp[1],
                dfp->uid.timestamp[2], dfp->uid.timestamp[3],
@@ -309,7 +316,7 @@ void dofish(dfp_pkt_transfer *dfp)
         break;
 
     case DFP_PKT_ACK_FISH :
-            /*  printf("    : UID %X%X%X%X%X%X",
+            /*  lprintf("    : UID %X%X%X%X%X%X",
                dfp->uid.creator_tank_x, dfp->uid.creator_tank_y,
                dfp->uid.timestamp[0], dfp->uid.timestamp[1],
                dfp->uid.timestamp[2], dfp->uid.timestamp[3]);
@@ -321,7 +328,7 @@ void dofish(dfp_pkt_transfer *dfp)
                 ff->state = DEAD;
                 st_count--;
                 sem_release(sem_fish);
-                printf("Goodbye fish \"%s\" (%d,%d)",ff->name,
+                lprintf("Goodbye fish \"%s\" (%d,%d)",ff->name,
                        dfp->base.src_tank_x,dfp->base.src_tank_y);
                 
                 f.cmd.cmd = NET_SEND;
@@ -358,7 +365,7 @@ donesync:
 
         strncpy(n2,dfp->fish.name,16);
         n2[16]=0;
-             printf("    : UID %X%X%X%X%X%X @(%d,%d) d(%d,%d) ttl=%d, name=\"%s\"\n",
+             lprintf("    : UID %X%X%X%X%X%X @(%d,%d) d(%d,%d) ttl=%d, name=\"%s\"\n",
                dfp->uid.creator_tank_x, dfp->uid.creator_tank_y,
                dfp->uid.timestamp[0], dfp->uid.timestamp[1],
                dfp->uid.timestamp[2], dfp->uid.timestamp[3],
@@ -368,7 +375,7 @@ donesync:
         newfish(dfp->fish.x, dfp->fish.y,
                 dfp->fish.dx, dfp->fish.dy,
                 n2);
-/*        printf("Welcome, \"%s\" from (%d,%d)",n2,
+/*        lprintf("Welcome, \"%s\" from (%d,%d)",n2,
                dfp->base.src_tank_x, dfp->base.src_tank_y);*/
 
         settank(dfp->base.src_tank_x,dfp->base.src_tank_y,1);
@@ -530,7 +537,7 @@ void vloop(void)
     for(;;){
         ticks++;
         if(!(ticks % 200)){
-            printf("pinging now...");
+            lprintf("pinging now...");
             for(i=0;i<4;i++){
                 cnxn[i].live = 0;
                 pingtank(cnxn[i].tx,cnxn[i].ty);
@@ -556,7 +563,7 @@ void vloop(void)
         sem_acquire(sem_fish);
         for(lf=NULL,f=first;f;f=f->next){
             if(f->state == DEAD && lf){
-                printf("Expiring \"%s\"",f->name);
+                lprintf("Expiring \"%s\"",f->name);
                 lf->next = f->next;
                 free(f);
                 f = lf;
@@ -742,7 +749,7 @@ void vinit(void)
     vga_fill_grad(320,200,0,0);
     vga_swap_buffers();
     
-    printf("fish: vinit()");
+    lprintf("fish: vinit()");
 
     newfish(160,160,3,3,"fish");
     newfish(100,40,-1,2,"not fish");
@@ -750,8 +757,8 @@ void vinit(void)
 
 void command(char *str);
 
-int main(void)
-{
+void fishmain(void)
+{	
     int once = 1;
     unsigned char data[1500];
     msg_hdr_t msg;
@@ -770,11 +777,9 @@ int main(void)
     nh = namer_newhandle();
 /*    while((port_console = namer_find(nh,"console")) < 1)
         for(i=0;i<100000;i++);*/
-    while((port_net = namer_find(nh,"net")) < 1)
-        for(i=0;i<100000;i++);
-    while((port_net_xmit = namer_find(nh,"net_xmit")) < 1)
-        for(i=0;i<100000;i++);
-    
+    if((port_net = namer_find(nh,"net")) < 1) WITH_NET = 0;
+    if((port_net_xmit = namer_find(nh,"net_xmit")) < 1) WITH_NET = 0;
+  
     port_fish = port_create(0);
     namer_register(nh, port_fish, "fish");
     namer_delhandle(nh);
@@ -784,43 +789,48 @@ int main(void)
     os_thread(vloop);
 /*    os_thread(restarter); */
     
-    printf("fish: port=%d, console=%d, net=%d\n",
+    lprintf("fish: port=%d, console=%d, net=%d\n",
            port_fish, port_console, port_net);
-    
-    msg.flags = 0;
-    msg.src = port_fish;
-    msg.dst = port_net;
-    msg.size = 8;
-    msg.data = &cmd;
 
-    cmd.cmd = NET_IP;
-    cmd.port = 0;
-    port_send(&msg);
-    msg.src = port_net_xmit;
-    msg.dst = port_fish;
-    msg.size = 4;
-    msg.data = ip;
-    port_recv(&msg);
+	if(WITH_NET){    
+		msg.flags = 0;
+		msg.src = port_fish;
+		msg.dst = port_net;
+		msg.size = 8;
+		msg.data = &cmd;
+		
+		cmd.cmd = NET_IP;
+		cmd.port = 0;
+		port_send(&msg);
+		msg.src = port_net_xmit;
+		msg.dst = port_fish;
+		msg.size = 4;
+		msg.data = ip;
+		port_recv(&msg);
 
-    printf("IP = %d.%d.%d.%d\n",ip[0],ip[1],ip[2],ip[3]);
-
-    myX = (ip[3] >> 3) & 0x07;
-    myY = (ip[3]) & 0x07;
-    printf("tank @ %d,%d",myX, myY);
-
-    msg.flags = 0;
-    msg.src = port_fish;
-    msg.dst = port_net;
-    msg.size = 8;
-    msg.data = &cmd;
-    
-    cmd.cmd = NET_CONNECT;
-    cmd.port = 5049;
-    port_send(&msg);
+		lprintf("IP = %d.%d.%d.%d\n",ip[0],ip[1],ip[2],ip[3]);
+		
+		myX = (ip[3] >> 3) & 0x07;
+		myY = (ip[3]) & 0x07;
+		lprintf("tank @ %d,%d",myX, myY);
+		
+		msg.flags = 0;
+		msg.src = port_fish;
+		msg.dst = port_net;
+		msg.size = 8;
+		msg.data = &cmd;
+		
+		cmd.cmd = NET_CONNECT;
+		cmd.port = 5049;
+		port_send(&msg);
+	} else {
+		lprintf("no network support\n");
+	}
 
     prep();
+#if 0
     os_thread(keythread);
-    
+#endif    
     for(;;){
         msg.flags = 0;
         msg.src = 0;
@@ -829,14 +839,21 @@ int main(void)
         msg.data = data;
 
         if((size = port_recv(&msg)) > 0){
-            if(msg.src == port_net_xmit){
-                dofish((dfp_pkt_transfer *) data);
-            } else {
-                data[size]=0;
-                command(data);
-            }
+			if(WITH_NET){
+				if(msg.src == port_net_xmit){
+					dofish((dfp_pkt_transfer *) data);
+				} else {
+					data[size]=0;
+					command(data);
+				}
+			}
         }
     }
+}
+
+int main(void)
+{
+	os_thread(fishmain);
     return 0;
 }
 
@@ -850,21 +867,21 @@ void command(char *str)
         myX = x;
         myY = y;
         prep();
-        printf("relocating tank to %d,%d",myX,myY);
+        lprintf("relocating tank to %d,%d",myX,myY);
         return;
     }
     if(!strncmp(str,"stats",5)){
-        printf("count: %d sent: %d recv: %d rej: %d",st_count,st_sent,st_recv,st_rej);
+        lprintf("count: %d sent: %d recv: %d rej: %d",st_count,st_sent,st_recv,st_rej);
         return;
     }
     if(!strncmp(str,"sticky",6)){
         sticky = !sticky;
-        printf("Sticky mode %s",sticky?"on":"off");
+        lprintf("Sticky mode %s",sticky?"on":"off");
         return;
     }
     if(!strncmp(str,"recluse",7)){
         recluse = !recluse;
-        printf("Recluse mode %s",recluse?"on":"off");
+        lprintf("Recluse mode %s",recluse?"on":"off");
         return;
     }
     if(!strncmp(str,"panic",5)){
@@ -902,12 +919,12 @@ void command(char *str)
     }
     if(!strncmp(str,"borg",4)){
         borg = !borg;
-        printf("Borg mode %s",borg?"on - prepare to assimilate":"off");
+        lprintf("Borg mode %s",borg?"on - prepare to assimilate":"off");
         return;
     }
     if(!strncmp(str,"eject",5)){
         int i;
-        printf("Ejecting all fish now!");
+        lprintf("Ejecting all fish now!");
         for(i=0;i<4;i++){
             if(cnxn[i].live){
                 fish *f;
