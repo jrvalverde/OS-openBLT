@@ -28,6 +28,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <elf.h>
 #include <dlfcn.h>
 #include <blt/libsyms.h>
@@ -66,9 +67,9 @@ unsigned int __dl_lookup_sym (lib_t *lib, const char *name)
 
 int __dl_patch_section (lib_t *lib, elf32_rel_t *rel, int size)
 {
-	char *name, *foo;
-	int i, j, done;
-	unsigned int *word, sym;
+	char *name;
+	int i;
+	unsigned int *word, sym = 0;
 	lib_t *p;
 
 	for (i = 0; i < size; i++)

@@ -32,24 +32,10 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/stat.h>
-
-const static char *copyright = "\
-OpenBLT Release I (built " __DATE__ ", " __TIME__ ")
-    Copyright (c) 1998-1999 The OpenBLT Dev Team.  All rights reserved.
-";
+#include <blt/syscall.h>
 
 char **params;
-
-void run(void)
-{
-	extern char _end[], __bss_start[];
-
-    __libc_init_console ();
-    __libc_init_vfs ();
-    execve (params[0], params, NULL);
-	printf ("bltsh: %s: %s\n", params[0], strerror (errno));
-    os_terminate (1);
-}
+void __libc_init_console_input (void);
 
 void do_command(int argc, char **argv)
 {
@@ -88,11 +74,8 @@ void do_command(int argc, char **argv)
 int main (void)
 {
 	char line[256], *c;
-	int fd, len, space, i, p_argc;
+	int len, space, i, p_argc;
 
-	__libc_init_fdl ();
-	__libc_init_console ();
-	__libc_init_vfs ();
 	__libc_init_console_input ();
 	printf ("\n");
 

@@ -46,16 +46,17 @@ static int vfs_public_port, vfs_local_port, vfs_remote_port, filename_area;
 static char *nameptr;
 
 static void __vfs_openconn (int src_port, int filename_area);
-static void __vfs_scroll_area (vfs_fd *fd, int offset);
 ssize_t _vfs_read (void *cookie, void *buf, size_t count);
+int _vfs_close (void *cookie);
 
-static fdl_type vfs_fdl_handler = { "vfs", _vfs_read, NULL, NULL, NULL };
+static fdl_type vfs_fdl_handler = { "vfs", _vfs_read, NULL, NULL, _vfs_close };
 
 weak_alias (_opendir, opendir)
 weak_alias (_readdir, readdir)
 weak_alias (_closedir, closedir)
 weak_alias (_open, open)
 weak_alias (_stat, stat)
+weak_alias (_mkdir, mkdir)
 
 void __libc_init_vfs (void)
 {
@@ -65,7 +66,7 @@ void __libc_init_vfs (void)
 	while ((vfs_public_port = namer_find (nh, "vfs")) <= 0)
 		os_sleep (10);
 	namer_delhandle (nh);
-	vfs_local_port = port_create (vfs_public_port);
+	vfs_local_port = port_create (vfs_public_port,"vfs_public_port");
 
 	filename_area = area_create (0x1000, 0, (void **) &nameptr, 0);
 	__vfs_openconn (vfs_local_port, filename_area);
@@ -102,34 +103,6 @@ static void __vfs_openconn (int src_port, int filename_area)
 		vfs_local_port = vfs_remote_port = -1;
 	}
 	vfs_remote_port = vr.data[0];
-}
-
-static void __vfs_scroll_area (vfs_fd *vfd, int offset)
-{
-	msg_hdr_t mh;
-	vfs_cmd_t vc;
-	vfs_res_t vr;
-
-	//_printf ("scroll: %d %x\n", fd, offset);
-	vc.cmd = VFS_SCROLL_AREA;
-	vc.data[0] = vfd->srv_fd;
-	vc.data[1] = offset;
-
-	mh.src = vfs_local_port;
-	mh.dst = vfs_public_port;
-	mh.data = &vc;
-	mh.size = sizeof (vc);
-	port_send (&mh);
-
-	mh.src = 0; /* XXX */
-	mh.dst = vfs_local_port;
-	mh.data = &vr;
-	mh.size = sizeof (vr);
-	port_recv (&mh);
-
-	vfd->length = vr.data[0];
-	vfd->more = vr.data[1];
-	vfd->offset = 0;
 }
 
 DIR *_opendir (const char *name)
@@ -260,32 +233,85 @@ int _open (const char *path, int flags, mode_t mode)
 	return i;
 }
 
+int _vfs_close (void *cookie)
+{
+	msg_hdr_t mh;
+	vfs_cmd_t vc;
+	vfs_res_t vr;
+	vfs_fd *vfd;
+
+	vfd = cookie;
+	vc.cmd = VFS_CLOSE;
+	vc.data[0] = vfd->srv_fd;
+	mh.src = vfs_local_port;
+	mh.dst = vfs_remote_port;
+	mh.data = &vc;
+	mh.size = sizeof (vfs_cmd_t);
+	port_send (&mh);
+
+	mh.src = vfs_remote_port;
+	mh.dst = vfs_local_port;
+	mh.data = &vr;
+	mh.size = sizeof (vfs_res_t);
+	port_recv (&mh);
+
+	if (vr.status != VFS_OK)
+	{
+		errno = vr.errno;
+		return -1;
+	}
+	return 0;
+}
+
 ssize_t _vfs_read (void *cookie, void *buf, size_t count)
 {
-	int numbytes, total;
+	int i, len;
+	msg_hdr_t mh;
+	vfs_cmd_t vc;
+	vfs_res_t vr;
 	register vfs_fd *vfd;
 
 	vfd = cookie;
-	total = 0;
+	vc.cmd = VFS_READ;
+	vc.data[0] = vfd->srv_fd;
+	vc.data[1] = count;
+	mh.src = vfs_local_port;
+	mh.dst = vfs_remote_port;
+	mh.data = &vc;
+	mh.size = sizeof (vfs_cmd_t);
+	port_send (&mh);
 
-	while (count)
+	mh.src = 0;
+	mh.dst = vfs_local_port;
+	mh.data = &vr;
+	mh.size = sizeof (vfs_res_t);
+	port_recv (&mh);
+	len = vr.data[0];
+	if (!len)
+		return errno = 0;
+
+	if (len < 0x1000)
 	{
-		numbytes = ((vfd->offset + count) < vfd->length) ? count :
-			(vfd->length - vfd->offset);
-		if (numbytes <= 0)
-			if (!vfd->more)
-				return total;
-			else
-				__vfs_scroll_area (vfd, vfd->area_offset += 0x2000);
-		else
-		{
-			memcpy (buf + total, vfd->buf + vfd->offset, numbytes);
-			vfd->offset += numbytes;
-			total += numbytes;
-			count -= numbytes;
-		}
+		mh.data = buf;
+		mh.size = count;
+		port_recv (&mh);
+		errno = vr.errno;
+		return len;
 	}
-	return total;
+	else
+	{
+		for (i = 0; len > 0x1000; i += 0x1000, len -= 0x1000)
+		{
+			mh.data = (char *) buf + i;
+			mh.size = 0x1000;
+			port_recv (&mh);
+		}
+		mh.data = (char *) buf + i;
+		mh.size = len;
+		port_recv (&mh);
+		errno = vr.errno;
+		return i + len;
+	}
 }
 
 int _stat (const char *filename, struct stat *buf)
@@ -295,7 +321,6 @@ int _stat (const char *filename, struct stat *buf)
 	vfs_res_t *vr;
 
 	strlcpy (nameptr, filename, BLT_MAX_NAME_LENGTH);
-
 	vc.cmd = VFS_RSTAT;
 	vc.data[0] = 0;
 	msg.src = vfs_local_port;
@@ -320,5 +345,35 @@ int _stat (const char *filename, struct stat *buf)
 		errno = vr->errno;
 		return -1;
 	}
+}
+
+int _mkdir (const char *path, mode_t mode)
+{
+	msg_hdr_t mh;
+	vfs_cmd_t vc;
+	vfs_res_t vr;
+
+	strlcpy (nameptr, path, BLT_MAX_NAME_LENGTH);
+	vc.cmd = VFS_MKDIR;
+	vc.data[0] = 0;
+	vc.data[1] = mode;
+	mh.src = vfs_local_port;
+	mh.dst = vfs_remote_port;
+	mh.data = &vc;
+	mh.size = sizeof (vfs_cmd_t);
+	port_send (&mh);
+
+	mh.src = vfs_remote_port;
+	mh.dst = vfs_local_port;
+	mh.data = &vr;
+	mh.size = sizeof (vfs_res_t);
+	port_recv (&mh);
+
+	if (vr.status != VFS_OK)
+	{
+		errno = vr.errno;
+		return -1;
+	}
+	return 0;
 }
 

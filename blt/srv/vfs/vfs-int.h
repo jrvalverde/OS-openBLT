@@ -29,13 +29,20 @@
 #ifndef _VFS_INT_H_
 #define _VFS_INT_H_
 
+
 #include <dirent.h>
 #include <sys/stat.h>
+
+#ifndef VFS_SANDBOX
 #include <blt/types.h>
 #include <blt/hash.h>
 #include <blt/qsem.h>
 #include <blt/vfs.h>
 #include <blt/syscall.h>
+#else
+#include "hash.h"
+#define MAX_FDS 256
+#endif
 
 struct fs_type
 {
@@ -96,10 +103,12 @@ struct vnode_ops
 	int (*readdir) (struct vnode *vnode, struct dirent *dirent, void *cookie);
 
 	int (*open) (struct vnode *vnode, void **cookie);
-	void (*close) (struct vnode *vnode, void *cookie);
+	int (*close) (struct vnode *vnode, void *cookie);
 	void (*free_cookie) (void *cookie);
-	int (*read) (struct vnode *vnode, char *buf, size_t count, void *cookie);
-	void (*write) (void);
+	int (*read) (struct vnode *vnode, char *buf, size_t count, off_t offset,
+		size_t *res, void *cookie);
+	void (*write) (struct vnode *vnode, const char *buf, size_t count,
+			void *cookie);
 	void (*ioctl) (void);
 	void (*setflags) (void);
 	int (*rstat) (struct vnode *vnode, struct stat *buf);
@@ -139,17 +148,17 @@ struct vnode
 	unsigned int v_refcount;
 	struct superblock *v_sb;
 	void *v_data;
+#ifndef VFS_SANDBOX
 	qsem_t *v_lock;
+#endif
 };
-
-#define OFILE_IS_FILE        0x00000001
-#define OFILE_IS_DIR         0x00000002
 
 struct ofile
 {
 	struct vnode *o_vnode;
 	void *o_cookie;
 	int area, offset, length, flags;
+	int o_pos;
 	void *dataptr;
 };
 
@@ -176,19 +185,27 @@ int fs_register (struct fs_type *type);
 void fs_unregister (struct fs_type *type);
 
 /* utility functions */
+struct superblock *fs_find (const char *name);
 struct vnode *vget (struct superblock *super, int num);
 void vput (struct vnode *vnode);
 
+#ifndef VFS_SANDBOX
 vfs_res_t *vfs_openconn (int rport, int area);
 vfs_res_t *vfs_scroll_area (struct client *client, vfs_cmd_t *vc);
 vfs_res_t *vfs_opendir (struct client *client, vfs_cmd_t *vc);
 vfs_res_t *vfs_closedir (struct client *client, vfs_cmd_t *vc);
+#endif
 
 struct vfs_dirent_node
 {
 	struct dirent *dirent;
 	struct vfs_dirent_node *next;
 };
+
+extern struct fs_type *fs_drivers;
+extern struct superblock *mount_list;
+
+int vfs_mount (const char *dir, const char *type, int flags, const void *data);
 
 #endif
 

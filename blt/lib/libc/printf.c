@@ -28,6 +28,7 @@
 */
 
 #include <stdarg.h>
+#include <string.h>
 #include <blt/namer.h>
 #include <blt/syscall.h>
 #include <blt/libsyms.h>
@@ -43,7 +44,7 @@ void __libc_init_console (void)
 	nh = namer_newhandle ();
 	while ((__libc_console_public_port = namer_find (nh, "console")) < 1)
 		os_sleep (10);
-	__libc_console_port = port_create (__libc_console_public_port);
+	__libc_console_port = port_create (__libc_console_public_port,"console_public_port");
 }
 
 weak_alias (_printf, __libc_printf)

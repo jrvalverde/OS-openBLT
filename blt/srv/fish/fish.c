@@ -768,8 +768,8 @@ void fishmain(void)
     net_cmd cmd;
     unsigned char ip[4];
 
-    sem_fish = sem_create(1);
-    sem_msgs = sem_create(1);
+    sem_fish = sem_create(1, "fish_lock");
+    sem_msgs = sem_create(1, "msgs_lock");
     
     keybuf2[0] = '>';
     keybuf2[1] = ' ';
@@ -780,7 +780,7 @@ void fishmain(void)
     if((port_net = namer_find(nh,"net")) < 1) WITH_NET = 0;
     if((port_net_xmit = namer_find(nh,"net_xmit")) < 1) WITH_NET = 0;
   
-    port_fish = port_create(0);
+    port_fish = port_create(0, "fish_tell_port");
     namer_register(nh, port_fish, "fish:tell");
     namer_delhandle(nh);
 

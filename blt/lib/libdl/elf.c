@@ -27,20 +27,9 @@
 */
 
 #include <stddef.h>
+#include <string.h>
 #include <elf.h>
 #include <blt/libsyms.h>
-
-static void run_all (const char *name)
-{
-/*
-	int i;
-
-	for (i = 0; i < symtablen; i++)
-		if (!strcmp (strtab + symtab[i].st_name, name) &&
-				(symtab[i].st_shndx != SHN_UNDEF))
-			(*((void (*)(void)) symtab[i].st_value)) ();
-*/
-}
 
 elf32_sec_hdr_t *elf_find_section_hdr (elf32_hdr_t *hdr, char *name)
 {
@@ -63,7 +52,7 @@ void *elf_find_section_data (elf32_hdr_t *hdr, char *name)
 {
 	elf32_sec_hdr_t *sec_hdr;
 
-	sec_hdr = _elf_find_section_hdr (hdr, name);
+	sec_hdr = elf_find_section_hdr (hdr, name);
 	return (sec_hdr == NULL) ? NULL : (void *) ((unsigned int) hdr +
 	    sec_hdr->sh_offset);
 }
@@ -72,7 +61,7 @@ int elf_section_size (elf32_hdr_t *hdr, char *name)
 {
 	elf32_sec_hdr_t *sec_hdr;
 
-	sec_hdr = _elf_find_section_hdr (hdr, name);
+	sec_hdr = elf_find_section_hdr (hdr, name);
 	return (sec_hdr == NULL) ? 0 : sec_hdr->sh_size;
 }
 

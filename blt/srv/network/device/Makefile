@@ -1,10 +1,6 @@
-# $Id$
+BLTHOME := ../../../
+include $(BLTHOME)make.conf
 
-all: ne
+SUBDIRS		:= ne
 
-ne::
-	@cd ne ; $(MAKE)
-
-clean:
-	@cd ne ; $(MAKE) clean
-
+include $(BLTHOME)make.actions

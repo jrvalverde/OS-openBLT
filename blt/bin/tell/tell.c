@@ -28,6 +28,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <blt/syscall.h>
 #include <blt/namer.h>
 
@@ -37,7 +38,6 @@ int main (int argc, char **argv)
 	int i, nh, loc_port, rem_port;
 	msg_hdr_t mh;
 
-	__libc_init_console ();
 	if (argc < 3)
 	{
 		printf ("tell: syntax: tell [server] [message]\n");
@@ -54,7 +54,7 @@ int main (int argc, char **argv)
 		printf ("tell: no such server or server not using tell\n");
 		return 0;
 	}
-	loc_port = port_create (rem_port);
+	loc_port = port_create (rem_port,"port");
 	strlcpy (text, argv[2], 256);
 	for (i = 3; i < argc; i++)
 	{

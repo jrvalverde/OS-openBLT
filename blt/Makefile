@@ -1,38 +1,13 @@
-# $Id$
-
+BLTHOME := .
 include make.conf
 
-all: lib kernel srv boot bin util image
+ifeq ($(BUILDLOG),)
+BUILDLOG := `pwd`/build.log
+endif
 
-boot:: 
-	@echo "--- boot ----------------"
-	@cd boot ; $(MAKE)
+SUBDIRS		:= lib kernel srv boot bin util
 
-kernel::
-	@echo "--- kernel --------------"
-	@cd kernel ; $(MAKE)
-
-lib::
-	@echo "--- lib -----------------"
-	@cd lib ; $(MAKE)
-
-srv::
-	@echo "--- srv -----------------"
-	@cd srv ; $(MAKE)
-
-util::
-	@echo "--- util ----------------"
-	@cd util ; $(MAKE)
-
-bin::
-	@echo "--- bin -----------------"
-	@cd bin ; $(MAKE)
-
-netboot::
-	@echo "--- netboot -------------"
-	@cd netboot ; $(MAKE)
-
-image:
+image: subdirs
 	./util/bootmaker boot/openblt.ini boot/openblt.boot
 
 floppy:
@@ -47,18 +22,14 @@ lfloppy: floppy
 run: image
 	./util/netboot boot/openblt.boot $(IP)
 
+go:
+	./util/bootmaker boot/openblt.ini boot/openblt.boot
+	./util/netboot boot/openblt.boot $(IP)
 
-image2:
-	./util/bootmaker boot/test.ini boot/test.boot
+all::
+	@echo "### `date`" > $(BUILDLOG)
 
-run2: image2
-	./util/netboot boot/test.boot $(IP)
-
-clean:
-	@cd lib ; $(MAKE) clean
-	@cd kernel ; $(MAKE) clean
-	@cd srv ; $(MAKE) clean
-	@cd boot ; $(MAKE) clean
-	@cd netboot ; $(MAKE) clean
+clean::
 	@rm -f boot/openblt.boot
 
+include make.actions

@@ -116,10 +116,13 @@ int _ioctl (int fd, unsigned long request, char *argp)
 
 int _close (int fd)
 {
+	int res;
+
 	if (fd_table[fd]->imp->close != NULL)
 	{
+		res = fd_table[fd]->imp->close (fd_table[fd]->cookie);
 		fd_table[fd] = NULL;
-		return fd_table[fd]->imp->close (fd_table[fd]->cookie);
+		return res;
 	}
 	else
 	{

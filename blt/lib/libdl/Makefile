@@ -1,19 +1,16 @@
-# $Id$
+BLTHOME := ../../
+include $(BLTHOME)make.conf
 
-include ../../make.conf
+TARGETS		:= rtld
+SRCS		:= load.c sym.c elf.c
+LIBRARY		:= libdl.a
+SHLIB		:= libdl.so
+SHLIB_MAJOR	:= 1
+SHLIB_MINOR	:= 0
 
-CFLAGS = $(CF) -I../../include
+RTLD_OBJS = rtld.o sym.o elf.o
 
-all: libdl.a libdl.so
+rtld: $(RTLD_OBJS)
+	ld -dn -Ttext 0x200074 -o rtld $(RTLD_OBJS) -L../../lib/obj -lc -lblt -lc
 
-OBJS = load.o sym.o elf.o
-
-libdl.a: $(OBJS)
-	rm -f libdl.a
-	$(AR) r libdl.a $(OBJS)
-
-libdl.so: $(OBJS)
-	$(LD) -Bshareable -o libdl.so $(OBJS)
-
-clean:
-	rm -f *.a *.so *.o *~ os.* core *.core *.s *.map *.bin
+include $(BLTHOME)make.actions

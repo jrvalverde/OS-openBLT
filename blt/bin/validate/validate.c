@@ -30,7 +30,7 @@ void receiver(void)
 	char buffer[32];
 	msg_hdr_t mh;
 	
-	recv_port = port_create(0);
+	recv_port = port_create(0,"recv port");
 	os_sleep(20);
 	
 	for(;;){
@@ -44,38 +44,13 @@ void receiver(void)
 	}
 }
 
-int main (int argc, char **argv)
+int port_test(void)
 {
 	int s,c;
-	__libc_init_console ();
-
-	printf("xxx %x %x / %x\n",argc,(uint32)argv,(uint32)&argc);
-	os_debug();
-	
-#if 0
-	send_port = port_create(0);
-	os_thread(sender);
-	receiver();
-#endif
-	
-	printf("sem_test: starting\n");
-	for(c=0;c<1000000;c++){
-		if(!(c % 100000)) printf("sem_test: %dth semaphore\n",c);
-		if((s = sem_create(1)) < 1) {
-			printf("sem_test: failed (in create) - iteration %d\n",c);
-			return 1;
-		}
-		if(sem_destroy(s)){
-			printf("sem_test: failed (in destroy) - iteration %d\n",c);
-			return 1;
-		}
-	}
-	printf("sem_test: passed\n");
-
 	printf("port_test: starting\n");
 	for(c=0;c<1000000;c++){
 		if(!(c % 100000)) printf("port_test: %dth port\n",c);
-		if((s = port_create(0)) < 1) {
+		if((s = port_create(0,"port test")) < 1) {
 			printf("port_test: failed (in create) - iteration %d\n",c);
 			return 1;
 		}
@@ -86,6 +61,65 @@ int main (int argc, char **argv)
 	}
 	printf("port_test: passed\n");
 	return 0;
+}
+
+int sem_id;
+
+void tt_thread(void *data)
+{
+	sem_release(sem_id);
+	os_terminate(0);
+}
+
+int thread_test(void)
+{
+	int n;
+	sem_id = sem_create(0, "thread_test_step");
 	
+	for(n=0;n<100000;n++){
+		if(!(n % 1000)) printf("thread_test: %dth thread\n",n);
+		thr_create(tt_thread, NULL, "thread test");
+		sem_acquire(sem_id);
+	}
+	
+}
+
+int sem_test(void)
+{
+	int s,c;
+	printf("sem_test: starting\n");
+	for(c=0;c<1000000;c++){
+		if(!(c % 100000)) printf("sem_test: %dth semaphore\n",c);
+		if((s = sem_create(1,"sem test")) < 1) {
+			printf("sem_test: failed (in create) - iteration %d\n",c);
+			return 1;
+		}
+		if(sem_destroy(s)){
+			printf("sem_test: failed (in destroy) - iteration %d\n",c);
+			return 1;
+		}
+	}
+	printf("sem_test: passed\n");
+	return 0;
+}
+
+int main (int argc, char **argv)
+{
+	int s,c;
+
+#if 0
+	send_port = port_create(0,"xmit port");
+	os_thread(sender);
+	receiver();
+#endif
+
+#if 0
+	if(sem_test()) return 0;
+	if(port_test()) return 0;
+#endif
+
+	if(thread_test()) return 0;
+	
+	return 0;	
 }
 

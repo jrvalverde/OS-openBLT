@@ -50,11 +50,17 @@ typedef struct
 	void *cookie;
 } __filedesc;
 
-void __libc_init_fdl (void);
-void __libc_fini_fdl (void);
 
-int _fdl_alloc_descriptor (fdl_type *handler, void *cookie);
-void _fdl_free_descriptor (int desc);
+#ifdef __cplusplus
+extern "C" {
+#endif
+	void __libc_init_fdl (void);
+	void __libc_fini_fdl (void);
+	int _fdl_alloc_descriptor (fdl_type *handler, void *cookie);
+	void _fdl_free_descriptor (int desc);
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

@@ -226,7 +226,7 @@ void keyboard_irq_thread(void)
 	
     int key;
 
-    send_port = port_create(console_port);
+    send_port = port_create(console_port,"console_xmit_port");
     os_handle_irq(1);
 	
     for(;;) {
@@ -349,7 +349,7 @@ void input_thread(void)
     char data[32];
     msg_hdr_t msg, reply;
     
-	input_port = port_create(0);
+	input_port = port_create(0,"console_input_port");
 	nh = namer_newhandle();    
 	namer_register(nh, input_port,"console_input");
 	namer_delhandle(nh);    
@@ -395,7 +395,7 @@ int console_main(void)
     int err,nh,i;    
 	area_create(0x2000, 0, &screen, AREA_PHYSMAP);
     
-    console_port = port_create(0);
+    console_port = port_create(0,"console_listen_port");
     nh = namer_newhandle();    
     err = namer_register(nh,console_port,"console");
     namer_delhandle(nh);    
@@ -403,12 +403,12 @@ int console_main(void)
 	init_virtscreen(&statbar, 1, 80);
     statbar.back = statbar.data;
 	statbar.data = (unsigned short *) (((uint32) screen) + 80*24*2);    
-    statbar.lock = sem_create(1);
+    statbar.lock = sem_create(1,"statbar_lock");
     
     for(i=0;i<10;i++){
         init_virtscreen(&con[i], 24, 80);
         con[i].back = con[i].data;
-        con[i].lock = sem_create(1);
+        con[i].lock = sem_create(1,"vscr_lock");
 		con[i].input_len = 0;
 		con[i].input_lock = qsem_create (1);
 		con[i].len_lock = qsem_create (0);

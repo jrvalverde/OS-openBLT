@@ -38,7 +38,7 @@ struct __sem_t
     int count;
 };
 
-int sem_create(int count);
+int sem_create(int count, const char *name);
 int sem_destroy(int sem);
 int sem_acquire(int id);
 int sem_release(int id);

@@ -1,16 +1,8 @@
-# $Id$
+BLTHOME := ../../../../
+include $(BLTHOME)make.conf
 
-include ../../../../make.conf
+CFLAGS		+= -D_NETWORK
+OBJS		:= iface.o
+SHLIB		:= ipv4.so
 
-CFLAGS = $(CF) -I../../../../include -D_NETWORK
-
-all: ipv4.so
-
-OBJS = iface.o
-
-ipv4.so: $(OBJS)
-	$(LD) -Bshareable -o ipv4.so $(OBJS)
-
-clean:
-	rm -f *.a *.so *.o *~ os.* core *.core *.s *.map *.bin
-
+include $(BLTHOME)make.actions

@@ -51,18 +51,41 @@ int wait_on(resource_t *rsrc)
 	return current->status;
 }
 
+void task_destroy(task_t *task)
+{
+	team_t *team = task->rsrc.owner;
+	
+	if(task == current) panic("cannot destroy the running task");
+	
+	TCLRMAGIC(task);
+	
+	if(task->stack_area) {
+		area_destroy(team->aspace, task->stack_area->rsrc.id);
+	}
+	
+	kfreepage(task->kstack);
+	rsrc_release(&task->rsrc);
+	kfree(task_t, task);
+	
+	team->refcount--;
+	if(team->refcount == 0) team_destroy(team);
+}
 
 /* create a new task, complete with int stack */
-task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel) 
+task_t *task_create(team_t *team, uint32 ip, uint32 sp, int kernel) 
 {
     task_t *t = kmalloc(task_t);	
 	uint32 *SP;
 	
 	t->kstack = kgetpages(1);
-    t->cr3  = (((uint32) a->pdir[0]) & 0xFFFFFF00) - 4096;
+	t->cr3 = team->aspace->pdirphys;
+	
 	t->esp = (uint32) ( ((char *) t->kstack) + 4092 );
 	t->esp0 = t->esp;
 	t->scount = 0;
+	t->stack_area = NULL;
+	
+	t->node.data = t;
 	
 	/* prep the kernel stack for first switch 
 	** SS
@@ -106,13 +129,12 @@ task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel)
 	
 //	kprintf("thr:%x/%x:%d",sp,ip,(kernel ? SEL_KCODE : (SEL_UCODE | 3)));
 	
-	t->resources = NULL;
-    t->addr = a;
     t->irq = 0;
     t->flags = tREADY;
 	t->waiting_on = NULL;
-	t->queue_next = NULL;
-	t->queue_prev = NULL;
+	team->refcount++;
+	
+	TSETMAGIC(t);
     return t;
 }
 
@@ -136,26 +158,32 @@ int thr_spawn(uint32 ip, uint32 sp,
 {
 	aspace_t *aspace;
 	task_t *task;
+	team_t *team;
 	area_t *area;
 	int id;
 	void *addr;
 	
-	if(!(aspace = aspace_create())) return -1;	
-	if(!(task = task_create(aspace, ip, sp, 0))) return -1;
-	rsrc_bind((resource_t *)task, RSRC_TASK, current);
-	rsrc_bind(&aspace->rsrc, RSRC_ASPACE, task);
-	
+	team = team_create();
+	aspace = team->aspace;
+	task = task_create(team, ip, sp, 0);
+	task->ustack = 0;
+	rsrc_bind(&task->rsrc, RSRC_TASK, team);
+
 	id = area_clone(aspace, area0, vaddr0, &addr, 0);
-	aspace->heap_id = id;
-	if(area = rsrc_find_area(id)) rsrc_set_owner(&area->rsrc, task);
+	team->heap_id = id;
+	
+	if(area = rsrc_find_area(id)) {
+		rsrc_set_owner(&area->rsrc, team);
+	}
 	
 	id = area_clone(aspace, area1, vaddr1, &addr, 0);
-	if(area = rsrc_find_area(id)) rsrc_set_owner(&area->rsrc, task);
+	if(area = rsrc_find_area(id)) rsrc_set_owner(&area->rsrc, team);
 
-	rsrc_set_name((resource_t *)task, name);
+	rsrc_set_name(&task->rsrc, name);
+	rsrc_set_name(&team->rsrc, name);
 	rsrc_enqueue(run_queue, task);
 	live_tasks++;
-
+	
 	return task->rsrc.id;
 }
 

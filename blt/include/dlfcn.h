@@ -33,14 +33,23 @@
 #define RTLD_LAZY       2
 #define RTLD_NOW        4
 
-void *_dlopen (const char *filename, int flag);
-void *dlopen (const char *filename, int flag);
-const char *_dlerror (void);
-const char *dlerror (void);
-void *_dlsym (void *handle, const char *symbol);
-void *dlsym (void *handle, const char *symbol);
-int _dlclose (void *handle);
-int dlclose (void *handle);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	void *_dlopen (const char *filename, int flag);
+	void *dlopen (const char *filename, int flag);
+	const char *_dlerror (void);
+	const char *dlerror (void);
+	void *_dlsym (void *handle, const char *symbol);
+	void *dlsym (void *handle, const char *symbol);
+	int _dlclose (void *handle);
+	int dlclose (void *handle);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

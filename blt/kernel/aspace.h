@@ -30,6 +30,7 @@
 #define _ASPACE_H_
 
 #include "resource.h"
+#include "list.h"
 
 #define SEL_KCODE  (1*8)
 #define SEL_KDATA  (2*8)
@@ -49,26 +50,22 @@ typedef struct __pagegroup_t {
     uint32 size;           /* number of pages */
     uint32 refcount;       /* number of areamaps */
     uint32 flags;          /* page info */
-    anode_t *areas;        /* areas sharing this pagegroup */
+	list_t areas;          /* areas sharing this pagegroup */
     phys_page_t *pages;    /* physical pages that compose this pagegroup */
-    uint32 _pad0;
-    uint32 _pad1;
-    uint32 _pad2;
-} pagegroup_t;  /* 32 bytes */    
+} pagegroup_t;  
         
 struct __area_t {
-    struct __resource_t rsrc;
-    struct __pagegroup_t *pgroup;
-    uint32 virt_addr;
+    resource_t rsrc;
+    pagegroup_t *pgroup;
+    uint32 virt_addr;     /* virtual PAGE address */
     uint32 length;        /* length in pages */
     uint32 maxlength;     /* maxlength in pages */
-}; /* 32 bytes */
+}; 
 
 struct __aspace_t {
-    struct __resource_t rsrc;
-    anode_t *areas;       /* list of mapped areas            */
+    resource_t rsrc;
+    list_t areas;         /* list of mapped areas            */
     uint32 maxvirt;       /* highest virt addr pagetabs maps */
-    uint32 heap_id;       /* this area is the heap... */
         /* platform specific */
     uint32 *pdir;         /* page directory  -- 4k */
     uint32 *ptab;         /* page table      -- 4k */
@@ -78,6 +75,7 @@ struct __aspace_t {
 
 
 aspace_t *aspace_create(void);
+void aspace_destroy(aspace_t *a);
 void aspace_map(aspace_t *a, uint32 phys, uint32 virt,
                 uint32 len, uint32 flags);
 void aspace_maphi(aspace_t *a, uint32 phys, uint32 virt,
@@ -88,6 +86,7 @@ void aspace_protect(aspace_t *a, uint32 virt, uint32 flags);
 
 /* userland stuff */
 int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 flags);
+int area_destroy(aspace_t *aspace, int area_id);
 int area_clone(aspace_t *aspace, int area_id, off_t virt, void **addr, uint32 flags);
 int area_destroy(aspace_t *aspace, int area_id);
 int area_resize(aspace_t *aspace, int area_id, off_t size);   

@@ -36,6 +36,7 @@
 
 #include "ne2k.h"
 #include "io.h"
+
 snic TheSNIC;
 
 char blah[1500]; /* inbound packet buffer */
@@ -248,7 +249,6 @@ int keypress(int key)
     con_goto(0,24);
     con_puts(linebuf);
     return 0;
-    
 }
 
 /* keyboard crap */
@@ -288,12 +288,6 @@ int console(void)
 
 
 /* end keyboard crap */
-
-/* ignore ne2000.c's whining */
-void kprintf(char *fmt, ...) 
-{
-}
-
 packet_buffer *alloc_buffer(uint size)
 {
     static packet_buffer pb;
@@ -452,7 +446,6 @@ void handle_udp(udp_packet *pkt)
         pbuf.page = 0;
         pbuf.len = 14 + 20 + 8 + 4;
 
-
         if(ntohs(nb->boot.cmd) == NETBOOT_CMD_EXEC){
             boot_dir *bd = (boot_dir *) NETBOOT_BASE;            
             volatile void (*start)(int, char *, boot_dir *) =
@@ -461,9 +454,7 @@ void handle_udp(udp_packet *pkt)
             
             printf("\nnetboot: executing at 0x%x\n", (int) start);
             start(memsize, param[0] ? param : (char *) ip0, bd);            
-            asm("hlt");
-            
-            
+            asm("hlt");           
         } else {
             nic_send_packet(&TheSNIC, &pbuf);
         }
@@ -484,7 +475,6 @@ void handle_ip(ip_packet *pkt)
 
     if(!memcmp(dst,ip,4)){        
         if(ipchksum(&(pkt->ip),sizeof(net_ip))) {
-            printf("handle_ip: bad checksum\n");
             return;
         }        
 /*        printf("handle_ip: for me? whoah!\n");*/
@@ -494,38 +484,8 @@ void handle_ip(ip_packet *pkt)
     
 }
 
-
 void print_arp(unsigned char *p);
 
-/*
-  unsigned char bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
-unsigned char zilch[6] = { 0, 0, 0, 0, 0, 0 };
-
-
-void issue_arp_req(unsigned char *qip)
-{
-    arp_packet req;
-    packet_buffer pbuf;            
-
-    req.ether.type = htons(0x0806);    
-    memcpy(&(req.ether.src),prom,6);
-    memcpy(&(req.ether.dst),bcast,6);
-    req.arp.arp_hard_type = htons(1);
-    req.arp.arp_prot_type = htons(0x0800);
-    req.arp.arp_hard_size = 6;
-    req.arp.arp_prot_size = 4;            
-    req.arp.arp_op = htons(ARP_OP_REQUEST);
-    memcpy(&(req.arp.arp_enet_sender),prom,6);
-    memcpy(&(req.arp.arp_ip_sender),ip,4);
-    memcpy(&(req.arp.arp_enet_target),zilch,6);
-    memcpy(&(req.arp.arp_ip_target),qip,4);
-
-    pbuf.ptr = (unsigned char *) &req;
-    pbuf.page = 0;
-    pbuf.len = sizeof(arp_packet);            
-    nic_send_packet(&TheSNIC, &pbuf);                   
-}
-*/
 
 unsigned char bcast[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 unsigned char zilch[6] = { 0, 0, 0, 0, 0, 0 };
@@ -605,26 +565,6 @@ void handle_arp(arp_packet *req)
         }
         return;        
     }
-/*    if(htons(req->arp.arp_op) == ARP_OP_REPLY){
-        if(!memcmp(&(req->arp.arp_ip_sender),server_ip,4)){
-            memcpy(server_mac,&(req->arp.arp_enet_sender),6);            
-            printf("handle_arp: server %d.%d.%d.%d @ %X:%X:%X:%X:%X:%X\n",
-                   server_ip[0],server_ip[1],server_ip[2],server_ip[3],
-                   server_mac[0],server_mac[1],server_mac[2],server_mac[3],
-                   server_mac[4],server_mac[5]);
-            got_server = 1;
-            
-            return;            
-        }
-        if(!memcmp(&(req->arp.arp_ip_sender),gateway_ip,4)){
-            memcpy(gateway_mac,&(req->arp.arp_enet_sender),6);            
-            printf("handle_arp: gateway %d.%d.%d.%d @ %X:%X:%X:%X:%X:%X\n",
-                   gateway_ip[0],gateway_ip[1],gateway_ip[2],gateway_ip[3],
-                   gateway_mac[0],gateway_mac[1],gateway_mac[2],gateway_mac[3],
-                   gateway_mac[4],gateway_mac[5]);
-            return;            
-        }
-    }*/
 }
 
 void print_arp(unsigned char *p)
@@ -678,21 +618,17 @@ void receive(packet_buffer *packet)
     } 
 }
 
-void main(char *params, int mem)
+void main(int mem)
 {
     int i,mono;
     int nh;    
     char buf[128];
     int snic_irq = 3;    
     char *x;
-
-    /*mem = 8 * 1024 * 1024;*/
     
     memsize = mem;
     param[0] = 0;
     
-/*    mono = ( (*((unsigned char *) 0x410)) & 0x30) == 0x30;*/
-
     mono = (((*((unsigned char *) 0x410)) & 0x30) == 0x30);
 
     parse(defaults);
@@ -706,29 +642,30 @@ void main(char *params, int mem)
         con_start( mono ? 0xB0000 : 0xB8000);
 
         if(!mono){
-            con_fgbg(CON_WHITE,CON_BLUE);
+            con_fgbg(CON_WHITE, CON_BLUE /*WHITE,CON_BLUE*/);
         }
 /*              01234567890123456789012345678901234567890123456789012345678901234567890123456789 */
-        printf("\n #   #  #####  #####  ####    ###    ###   #####   ACM@UIUC SigOPS NetBoot V1.3\n");
-        printf(" ##  #  #        #    #   #  #   #  #   #    #                                 \n");
-        printf(" # # #  ####     #    ####   #   #  #   #    #     Copyright 1998,    | Share  \n");
-        printf(" #  ##  #        #    #   #  #   #  #   #    #     Brian J. Swetland  |  and   \n");
-        printf(" #   #  #####    #    ####    ###    ###     #     and Doug Armstrong | Enjoy!");
+		printf("\n");
+		printf("  ##   ##  ######  ######  ######    #####    #####   ######  OpenBLT Boot ROM\n");
+		printf("  ###  ##  ##        ##    ##   ##  ##   ##  ##   ##    ##    Version 1.4\n");
+		printf("  ## # ##  #####     ##    ######   ##   ##  ##   ##    ##    \n");
+		printf("  ##  ###  ##        ##    ##   ##  ##   ##  ##   ##    ##    Copyright 1999\n");
+		printf("  ##   ##  ######    ##    ######    #####    #####     ##    OpenBLT Dev Team");
+		
         if(!mono){
             con_fgbg(CON_WHITE,CON_BLACK);
         }
-        
-        printf("\n\n\nnetboot: 0x00090000 - bootloader start\n");
+        printf("\n\n\n");
+		printf("netboot: 0x00090000 - bootloader start\n");
         printf("netboot: 0x%x - bootloader end\n", (int) end);
         printf("netboot: 0x00100000 - target load address\n");
         printf("netboot: 0x%x - top of memory\n",mem);
         printf("\n");
         
-        printf("netboot: ne2000 @ 0x300, irq 3\n");
-        printf("netboot:  MAC = %X:%X:%X:%X:%X:%X\n",
+        printf("netboot: NE2000 @ 0x300 (%X:%X:%X:%X:%X:%X)\n",
                prom[0],prom[1],prom[2],prom[3],prom[4],prom[5]);    
         
-        printf("netboot:   IP = %d.%d.%d.%d %s\n",ip[0],ip[1],ip[2],ip[3],
+        printf("netboot: ip = %d.%d.%d.%d %s\n",ip[0],ip[1],ip[2],ip[3],
                ipmsg);
         if(param[0]) printf("netboot: boot = \"%s\"\n",param);
         
@@ -743,6 +680,7 @@ void main(char *params, int mem)
             issue_rarp_request();
             issue_rarp_request();
         }
+		
         while(!reset){
             nic_isr(&TheSNIC);
             if(inb(0x64) & 0x01) {

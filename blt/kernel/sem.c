@@ -29,12 +29,12 @@
 #include "resource.h"
 #include "memory.h"
 
-int sem_create(int count) 
+int sem_create(int count, const char *name) 
 {
     sem_t *s = (sem_t *) kmalloc(sem_t);
     s->count = count;
-	rsrc_bind(&s->rsrc, RSRC_SEM, current);
-	
+	rsrc_bind(&s->rsrc, RSRC_SEM, current->rsrc.owner);
+	rsrc_set_name(&s->rsrc, name);
     return s->rsrc.id;
 }
 

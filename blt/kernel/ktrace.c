@@ -50,8 +50,37 @@ void va_snprintf(char *b, int l, const char *fmt, va_list pvar);
 #error cannot use both serial debugging and dprintf
 #endif
 
-#if (defined (SERIAL_DEBUG) || defined (DPRINTF)) && !defined (SERIAL)
+#if (defined (SERIAL_DEBUG) || defined (DPRINTF)) && !defined (SERIAL) && !defined (PORT_E9)
 #error cannot use serial debugging or dprintf without serial port code
+#endif
+
+#ifdef PORT_E9
+/* Bochs has this special direct to console thing */
+
+void dprintf_init(void)
+{
+}
+
+static int ser_getc(void)
+{
+	for(;;) ;
+}
+
+static void ser_putc(int ch)
+{
+    while (!(inb(combase + 5) & 0x20));
+    outb((unsigned char) ch, 0xe9);
+}
+
+static void ser_puts(char *s)
+{
+    int t;
+    while(*s){
+        ser_putc(*s);
+        s++;
+    }
+}
+
 #endif
 
 #ifdef SERIAL

@@ -28,7 +28,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <blt/qsem.h>
 #include "vfs-int.h"
 
 struct vnode *vget (struct superblock *super, int vnid)
@@ -42,7 +41,9 @@ struct vnode *vget (struct superblock *super, int vnid)
 	v->v_vnid = vnid;
 	v->v_refcount = 1;
 	v->v_sb = super;
+#ifndef VFS_SANDBOX
 	v->v_lock = qsem_create (1);
+#endif
 	super->sb_vops->read_vnode (v);
 	return v;
 }
@@ -50,6 +51,9 @@ struct vnode *vget (struct superblock *super, int vnid)
 void vput (struct vnode *vnode)
 {
 	vnode->v_sb->sb_vops->drop_vnode (vnode);
+#ifndef VFS_SANDBOX
+	qsem_destroy (vnode->v_lock);
+#endif
 	vnode->v_refcount--;
 	if (!vnode->v_refcount)
 		free (vnode);

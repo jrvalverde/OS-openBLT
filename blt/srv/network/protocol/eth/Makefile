@@ -1,16 +1,8 @@
-# $Id$
+BLTHOME := ../../../../
+include $(BLTHOME)make.conf
 
-include ../../../../make.conf
+CFLAGS		+= -D_NETWORK
+OBJS		:= eth.o
+SHLIB		:= eth.so
 
-CFLAGS = $(CF) -I../../../../include -D_NETWORK
-
-all: eth.so
-
-OBJS = eth.o
-
-eth.so: $(OBJS)
-	$(LD) -Bshareable -o eth.so $(OBJS)
-
-clean:
-	rm -f *.a *.so *.o *~ os.* core *.core *.s *.map *.bin
-
+include $(BLTHOME)make.actions

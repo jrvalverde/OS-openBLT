@@ -102,9 +102,8 @@ void faultE(uint32 number,
     asm("mov %%cr3, %0":"=r" (_cr3));
     kprintf("   cr2 = %x   cr3 = %x error = %x",_cr2,_cr3,error);
     kprintf("");
-    kprintf("Task %X (%s) crashed.",current->rsrc.id,current->rsrc.name);
+    kprintf("Task %d (%s) crashed.",current->rsrc.id,current->rsrc.name);
 
-	rsrc_enqueue(reaper_queue, current);
 #ifdef DEBUG_ON_FAULT
     current->flags = tDEAD;
     k_debugger(&r, eip, cs, eflags);
@@ -127,9 +126,8 @@ void fault(uint32 number,
     print_regs(&r, eip, cs, eflags);
 
     kprintf("");
-    kprintf("Task %X (%s) crashed.",current->rsrc.id,current->rsrc.name);
+    kprintf("Task %d (%s) crashed.",current->rsrc.id,current->rsrc.name);
 	
-	rsrc_enqueue(reaper_queue, current);
 #ifdef DEBUG_ON_FAULT
     if(number != 2){
         current->flags = tDEAD;
@@ -174,7 +172,7 @@ void timer_irq(regs r, uint32 eip, uint32 cs, uint32 eflags)
 	task_t *task;
     kernel_timer++;
     
-	while(task = timer_queue->queue_head){
+	while(task = rsrc_queue_peek(timer_queue)){
 		if(task->wait_time <= kernel_timer){
 			task = rsrc_dequeue(timer_queue);
 			rsrc_enqueue(run_queue, task);

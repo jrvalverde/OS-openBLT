@@ -86,7 +86,7 @@ aspace_t *aspace_create(void)
 	a->ptab = raw1;
 	a->high = flat->high;
 	a->pdirphys = phys0;
-	a->areas = NULL;
+	list_init(&a->areas);
 	
     for(i=0;i<1024;i++){
         a->pdir[i] = 0;
@@ -94,14 +94,13 @@ aspace_t *aspace_create(void)
     }
     a->pdir[0] = phys1 | 7;
     a->pdir[512] = (_cr3 + 2*4096) | 3;
-	rsrc_bind(&a->rsrc, RSRC_ASPACE, NULL);
+	rsrc_bind(&a->rsrc, RSRC_ASPACE, kernel_team);
     return a;
 }
 
 void aspace_protect(aspace_t *a, uint32 virt, uint32 flags)
 {
-    a->ptab[virt] = ((a->ptab[virt] & 0xFFFFF000) | (flags & 0x00000FFF));
-    
+    a->ptab[virt] = ((a->ptab[virt] & 0xFFFFF000) | (flags & 0x00000FFF));    
 }
 
 void aspace_map(aspace_t *a, uint32 phys, uint32 virt, uint32 len, uint32 flags)
@@ -119,7 +118,7 @@ void aspace_maphi(aspace_t *a, uint32 phys, uint32 virt, uint32 len, uint32 flag
     int i;
     for(i=0;i<len;i++){
         a->high[(virt&0x3FF)+i] = (phys+i)*4096 | flags;
-        local_flush_pte(0x1000*((virt&0x3FF)+i));
+        local_flush_pte(0x1000*((virt)+i));
     }
     
 }
@@ -127,8 +126,25 @@ void aspace_maphi(aspace_t *a, uint32 phys, uint32 virt, uint32 len, uint32 flag
 void aspace_clr(aspace_t *a, uint32 virt, uint32 len)
 {
     int i;
-    for(i=0;i<len;i++)
+    for(i=0;i<len;i++){
         a->ptab[virt+i] = 0;
+	}
+}
+
+void aspace_destroy(aspace_t *a)
+{
+	area_t *area;
+		
+	/* tear down all attached areas */
+	while((area = (area_t*) list_peek_head(&a->areas))){
+		area_destroy(a, area->rsrc.id);
+	}
+		
+	rsrc_release(&a->rsrc);
+	/* release page directory and table(s) */
+	kfreepage(a->pdir);
+	kfreepage(a->ptab);
+	kfree(aspace_t, a);
 }
 
 /* find a span of contig virtual pages */
@@ -164,7 +180,6 @@ int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 fl
     area_t *area;
     pagegroup_t *pg;
     phys_page_t *pp;
-    anode_t *an;
     size = (size & 0x0FFF) ? (size / 0x1000 + 1) : (size / 0x1000);
     
     if(size < 1) size = 1;
@@ -184,6 +199,7 @@ int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 fl
     pg->refcount = 1;
     pg->size = size;
     pg->pages = NULL;
+	list_init(&pg->areas);
     for(i=0;i<size;i+=6){
         pp = (phys_page_t *) kmalloc(phys_page_t);
         pp->lockcount = 0;
@@ -199,20 +215,10 @@ int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 fl
     area->maxlength = size;
     
     /* link this area into the new pagegroup */
-    an = (anode_t *) kmalloc(anode_t);
-    an->next = an->prev = NULL;
-    an->area = area;
-    pg->areas = an;
+	list_add_tail(&pg->areas, area);
     
     /* link this area into the aspace's arealist */
-    an = (anode_t *) kmalloc(anode_t);
-    if(aspace->areas){
-        aspace->areas->prev = an;
-    }
-    an->next = aspace->areas;
-    an->prev = NULL;
-    an->area = area;
-    aspace->areas = an;
+	list_add_tail(&aspace->areas, area);	
 
     /* check for valid ptr */
     *addr = (void *) (at * 0x1000);
@@ -243,7 +249,7 @@ int area_create(aspace_t *aspace, off_t size, off_t virt, void **addr, uint32 fl
     }
     
     /* bind the resource and return the id */
-    rsrc_bind(&(area->rsrc), RSRC_AREA, current);
+    rsrc_bind(&(area->rsrc), RSRC_AREA, current->rsrc.owner);
     return area->rsrc.id;
 }
 
@@ -253,7 +259,6 @@ int area_create_uber(off_t size, void *addr)
     area_t *area;
     pagegroup_t *pg;
     phys_page_t *pp;
-    anode_t *an;
 
     size = (size & 0x0FFF) ? (size / 0x1000 + 1) : (size / 0x1000);
     if(size < 1) size = 1;
@@ -266,6 +271,7 @@ int area_create_uber(off_t size, void *addr)
     pg->refcount = 1;
     pg->size = size;
     pg->pages = NULL;
+	list_init(&pg->areas);
     for(i=0;i<size;i+=6){
         pp = (phys_page_t *) kmalloc(phys_page_t);
         pp->lockcount = 0;
@@ -281,10 +287,7 @@ int area_create_uber(off_t size, void *addr)
     area->maxlength = size;
     
     /* link this area into the new pagegroup */
-    an = (anode_t *) kmalloc(anode_t);
-    an->next = an->prev = NULL;
-    an->area = area;
-    pg->areas = an;
+	list_add_tail(&pg->areas, area);    
     
     /* allocate pages, fill phys_page_t's, and map 'em */
     for(ppo=0,pp=pg->pages,i=0;i<size;i++){
@@ -308,7 +311,7 @@ int area_create_uber(off_t size, void *addr)
     }
     
     /* bind the resource and return the id */
-    rsrc_bind(&(area->rsrc), RSRC_AREA, kernel);
+    rsrc_bind(&(area->rsrc), RSRC_AREA, kernel_team);
     return area->rsrc.id;
 }
 
@@ -316,19 +319,19 @@ int area_clone(aspace_t *aspace, int area_id, off_t virt, void **addr, uint32 fl
 {
     area_t *area0, *area1;
     uint32 at, size;
-    anode_t *an;
     phys_page_t *pp;
     int i,ppo;
     
     /* make sure the area exists */
     /* xxx : check perm */
     if(!(area0 = rsrc_find_area(area_id))) return ERR_RESOURCE;
-    
+	
     /* find virt space for it */
     if(!(at = locate_span(aspace, virt/0x1000, area0->length))){
         return ERR_MEMORY;
     }
 
+	
 /* xxx lock area1 and area1->pgroup */
         
     /* allocate the clone area and init it from the orig */
@@ -338,24 +341,12 @@ int area_clone(aspace_t *aspace, int area_id, off_t virt, void **addr, uint32 fl
     size = area1->length = area0->length;
     area1->maxlength = area0->maxlength;
     area1->virt_addr = at;
-    
+	
     /* link this area into the new pagegroup */
-    an = (anode_t *) kmalloc(anode_t);
-    area0->pgroup->areas->prev = an;
-    an->next = area0->pgroup->areas;
-    an->prev = NULL;
-    an->area = area1;
-    area0->pgroup->areas = an;
+	list_add_tail(&area0->pgroup->areas, area1);
    
     /* link this area into the aspace's arealist */
-    an = (anode_t *) kmalloc(anode_t);
-    if(aspace->areas){
-        aspace->areas->prev = an;
-    }
-    an->next = aspace->areas;
-    an->prev = NULL;
-    an->area = area1;
-    aspace->areas = an;        
+	list_add_tail(&aspace->areas, area1);
 
     /* check for valid ptr */
     *addr = (void *) (at * 0x1000);
@@ -375,13 +366,54 @@ int area_clone(aspace_t *aspace, int area_id, off_t virt, void **addr, uint32 fl
     kprintf("area1 pgroup %x",area1->pgroup);
     */
     /* bind and return an id */
-    rsrc_bind(&(area1->rsrc), RSRC_AREA, current);
+    rsrc_bind(&(area1->rsrc), RSRC_AREA, current->rsrc.owner);
+//	kprintf("area_clone(%d) -> %d",area_id,area1->rsrc.id);
     return area1->rsrc.id;
 }
 
 int area_destroy(aspace_t *aspace, int area_id)
 {
+	area_t *area;
+	pagegroup_t *pg;
+	
+    if(!(area = rsrc_find_area(area_id))) return ERR_RESOURCE;
+	
+	/* find and unchain the area from its aspace -- complain if it is foreign */
+	if(list_remove(&aspace->areas, area)) return ERR_RESOURCE;
+	
+	/* unmap the memory */
+	aspace_clr(aspace, area->virt_addr, area->length);
+	
+	pg = area->pgroup;
+	
+	/* remove this area from the pgroup's area list */
+	list_remove(&pg->areas, area);
+	
+	/* decr the pagegroup refcount and tear it down if zero */
+	pg->refcount--;
+	
+	if(pg->refcount == 0){
+		int release = !(pg->flags & AREA_PHYSMAP);
+		int count = 0;
+		phys_page_t *pp;
 
+		while(pp = pg->pages){
+			pg->pages = pp->next;
+			if(release){
+				for(count=0;pg->size && (count < 6);count++){
+					putpage(pp->addr[count]);
+					pg->size--;
+				}
+			}
+			kfree(phys_page_t, pp);
+		}	
+		kfree(pagegroup_t, pg);
+	}
+
+	rsrc_release(&area->rsrc);
+	
+	kfree(area_t, area);
+	return ERR_NONE;
 }
 
 int area_resize(aspace_t *aspace, int area_id, off_t size)
@@ -397,25 +429,26 @@ int area_resize(aspace_t *aspace, int area_id, off_t size)
     pg = area->pgroup;
     pp = area->pgroup->pages;
     
-    
+//	kprintf("area_resize(%x,%d,%d)",aspace,area_id,size);
+	    
     if(size <= pg->size*0x1000) return 0;
 
     size = size/0x1000 - pg->size; /* pages to add */
-/*
-    kprintf("area_resize: %x %x %x + %x",area,pg,pp,size);
- */   
+
+//    kprintf("area_resize: %x %x %x + %x",area,pg,pp,size);
+
     at = locate_span(aspace, area->virt_addr + pg->size, size);
     if(at != (area->virt_addr + pg->size)) {
         kprintf("oops: cannot grow area (%x != %x)",at,area->virt_addr+pg->size);
         return ERR_MEMORY;
     }
     
+    while(pp->next) pp = pp->next;
+    ppo = pg->size % 6;
+    
     pg->size += size;
     area->length += size;
     area->maxlength += size;
-    
-    while(pp->next) pp = pp->next;
-    ppo = pg->size % 6;
     
     while(size){
         if(!ppo){

@@ -30,7 +30,8 @@
 #define _TASK_H_
 
 #include "resource.h"
- 
+#include "list.h"
+
 #define tKERNEL       0
 #define tRUNNING      1
 #define tREADY        2
@@ -39,33 +40,55 @@
 #define tSLEEP_IRQ    5
 #define tSLEEP_TIMER  6
 
-struct __task_t {
-    struct __resource_t rsrc;
+#define PARANOID 0
 
+#if PARANOID
+#define TMAGIC1 0x327610ae
+#define TMAGIC2 0x55716621
+#endif
+
+struct __task_t {
+    resource_t rsrc;
+
+#if PARANOID
+	uint32 magic1;
+#endif
+		
 	/* wait_queue support */
-	struct __resource_t *waiting_on;
-	struct __task_t *queue_next;
-	struct __task_t *queue_prev;
+	resource_t *waiting_on;
+	node_t node;
 	int   status; /* status code for the task that has just been awakened */
 	uint32 wait_time; /* for timer queues */
 	
-    char *iomap;
-    struct __aspace_t *addr;
 	uint32 flags;
     uint32 irq;
 	uint32 esp; /* saved stack */
 	uint32 esp0; /* kernel entry stack -- to stuff in the TSS */
+#if PARANOID
+	uint32 magic2;
+#endif
 	uint32 cr3;
 	uint32 scount;
 	void *kstack, *ustack;
-    resnode_t *resources;
-    int text_area;
+
+	area_t *stack_area;
 #ifdef __SMP__
     int has_cpu, processor, last_processor;
 #endif
 };
 
-task_t *task_create(aspace_t *a, uint32 ip, uint32 sp, int kernel);
+#if PARANOID
+#define TSETMAGIC(t) { t->magic1 = TMAGIC1; t->magic2 = TMAGIC2; }
+#define TCLRMAGIC(t) { t->magic1 = 0; t->magic2 = 0; }
+#define TCHKMAGIC(t) { if((t->magic1 != TMAGIC1) || (t->magic2 != TMAGIC2)) panic("bad thread magic");}
+#else
+#define TSETMAGIC(t) ((void)0)
+#define TCLRMAGIC(t) ((void)0)
+#define TCHKMAGIC(t) ((void)0)
+#endif
+
+task_t *task_create(team_t *team, uint32 ip, uint32 sp, int kernel);
+void task_destroy(task_t *task);
 void task_wait_on(task_t *task, resource_t *rsrc);
 void task_wake(task_t *task, int status);
 int wait_on(resource_t *rsrc);

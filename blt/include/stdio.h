@@ -38,15 +38,27 @@ typedef struct
 
 extern FILE *stdin, *stdout, *stderr;
 
-int _console_read (void *cookie, void *buf, size_t count);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int _getc (FILE *stream);
-int getc (FILE *stream);
-int _getchar (void);
-int getchar (void);
+	int _console_read (void *cookie, void *buf, size_t count);
+	
+	int _getc (FILE *stream);
+	int getc (FILE *stream);
+	int _getchar (void);
+	int getchar (void);
+	
+	int _printf (const char *format, ...);
+	int printf (const char *format, ...);
 
-int _printf (const char *format, ...);
-int printf (const char *format, ...);
+	int _snprintf (char *str, size_t size, const char *format, ...);
+	int snprintf (char *str, size_t size, const char *format, ...);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif
 

@@ -187,7 +187,7 @@ int main(void)
     int nh;    
  
     nh = namer_newhandle();
-    port_video = port_create(0);
+    port_video = port_create(0,"video");
     namer_register(nh, port_video, "video");
     namer_delhandle(nh);
 

@@ -29,14 +29,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 int main (int argc, char **argv)
 {
 	char *buf;
 	int fd, res;
-
-	__libc_init_console ();
-	__libc_init_vfs ();
 
 	if (argc == 1)
 	{
@@ -50,7 +48,7 @@ int main (int argc, char **argv)
 		printf ("cat: no such file or directory: %s\n", argv[1]);
 		return 0;
 	}
-	while (res = read (fd, buf, 255))
+	while ((res = read (fd, buf, 255)))
 	{
 		buf[res] = 0;
 		printf (buf);

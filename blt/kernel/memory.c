@@ -1,4 +1,4 @@
- /* $Id$
+/* $Id$
 **
 ** Copyright 1998 Brian J. Swetland
 ** All rights reserved.
@@ -113,6 +113,9 @@ static struct _km_map
 extern uint32 memsize;
 extern uint32 memtotal;
 
+static uint32 total_pages;
+static uint32 used_pages;
+
 void memory_status(void)
 {
     int i;
@@ -131,42 +134,15 @@ void memory_status(void)
 	inuse /= 1024;
 	allocated /= 1024;
 	kprintf("");
-	kprintf("%Ukb allocated, %Ukb in use",allocated,inuse);
-	kprintf("%U (of %U) pages in use",memtotal-memsize,memtotal);
+	kprintf("%dkb allocated, %dkb in use",allocated,inuse);
+	kprintf("%d (of %d) pages in use",used_pages, total_pages);
 	 
 }
 
-#if 0
-/* return phys page number of first page of allocated group */
-uint32 getpages(int count)
-{
-    memsize -= count;
-    Assert(memsize > 512);
-    
-    return memsize;
-}
-
-/* alloc count physical pages, map them into kernel space, return virtaddr AND phys */
-void *kgetpages2(int count, int flags, uint32 *phys)
-{
-    nextmem -= 4096*count;
-    *phys = getpages(count);
-    aspace_maphi(flat, *phys, nextmem/0x1000, count, flags);
-    *phys *= 4096;
-    return (void *) nextmem;
-}
-
-/* alloc count physical pages, map them into kernel space, return virtaddr */
-void *kgetpages(int count, int flags)
-{
-    nextmem -= 4096*count;
-    aspace_maphi(flat, getpages(count), nextmem/0x1000, count, flags); 
-    return (void *) nextmem;
-}
-#endif
 
 /* kernel 'heap' is allocated top down ... top three pages used by the bootstrap */
 static uint32 nextmem = 0x80400000 - 4*4096;
+static node_t *freevpagelist = NULL;
 
 static uint32 *pagelist = NULL;
 static uint32 freepage = 0;
@@ -175,44 +151,92 @@ extern aspace_t *flat;
 
 void putpage(uint32 number)
 {
+//	kprintf("- %d",number);
+				
 	pagelist[number] = freepage;
 	freepage = number;
+	used_pages--;
 }
 
 uint32 getpage(void)
 {
 	uint32 n = freepage;
+	
+//	kprintf("+ %d",n);
+
 	if(n){
 		freepage = pagelist[n];
 	} else {
-		asm("hlt");
-		
 		panic("Out of physical memory");
 	}
+	used_pages++;
 	return n;
 }
 
 void kfreepage(void *vaddr)
 {
+	node_t *n;
+	int pageno;
+	int vpage = (((uint32)vaddr)/0x1000) & 0x3ff;
+	
+	if(!flat->high[vpage]){
+		kprintf("vpage %d / %x unmapped already?!",vpage,vaddr);
+		DEBUGGER();
+	}
+	
+	/* release the underlying page */
+	pageno = flat->high[vpage] / 0x1000;	
+//	kprintf("kfreepage(%x) high[%d] = %d",vaddr,vpage,pageno);
+	putpage( pageno );
+	
+	flat->high[vpage] = 0;
+	local_flush_pte(vaddr);
+	
+	/* stick it on the virtual page freelist */
+	n = kmalloc(node_t);
+	n->next = freevpagelist;
+	n->data = vaddr;
+	freevpagelist = n;
 }
 
 void *kgetpage(uint32 *phys)
 {
 	uint32 pg = getpage();
 	*phys = pg * 0x1000;
-	nextmem -= 4096;
-	aspace_maphi(flat, pg, nextmem/0x1000, 1, 3);
-	return (void *) nextmem;
+
+	if(nextmem < 0x80050000) panic("kernel vspace exhausted");
+	
+	if(freevpagelist){
+		node_t *n = freevpagelist;
+		void *page = n->data;
+		freevpagelist = n->next;
+		kfree(node_t, n);
+		if(flat->high[(((uint32)page)/0x1000) & 0x3ff]){
+			kprintf("page collision @ %x",page);
+			DEBUGGER();
+		}
+		aspace_maphi(flat, pg, (((uint32)page)/0x1000) , 1, 3);
+		return page;		
+	} else {	
+		nextmem -= 4096;
+		aspace_maphi(flat, pg, nextmem/0x1000, 1, 3);
+		return (void *) nextmem;
+	}
 }
 
 void *kgetpages(int count)
 {
-	int i,n;
-    nextmem -= 4096*count;
-	for(n=nextmem/0x1000,i=0;i<count;n++,i++){
-		aspace_maphi(flat, getpage(), n, 1, 3); 
+	if(count == 1){
+		uint32 phys;
+		return kgetpage(&phys);
+	} else {
+		int i,n;
+		nextmem -= 4096*count;
+		for(n=nextmem/0x1000,i=0;i<count;n++,i++){
+			aspace_maphi(flat, getpage(), n, 1, 3); 
+		}
+		return (void *) nextmem;
 	}
-    return (void *) nextmem;
 }
 
 /* map specific physical pages into kernel space, return virtaddr */
@@ -232,24 +256,17 @@ void memory_init(uint32 bottom_page, uint32 top_page)
 	
 	/* allocate the pagelist */
 	top_page -= count;
-	
-#if 0
-	top_page = 2048+32;
-	count = 4;
-#endif
+	total_pages = 0;
+	used_pages = 0;
 	
 	nextmem -= 4096*count;
 	pagelist = (uint32 *) nextmem;
 	aspace_maphi(flat, top_page, nextmem/0x1000, count, 3);
-
-#if 0
-	bottom_page = 1024;
-	top_page = 2048;	
-#endif
 		
 	/* setup the pagelist */
 	freepage = 0;
 	for(i=top_page;i>=bottom_page;i--){
+		total_pages++;
 		pagelist[i] = freepage;
 		freepage = i;
 	}

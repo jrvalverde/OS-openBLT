@@ -45,14 +45,22 @@ struct dirent
 	char d_name[BLT_MAX_NAME_LENGTH + 1];
 };
 
-DIR *_opendir (const char *path);
-DIR *opendir (const char *path);
-int _closedir (DIR *dirp);
-int closedir (DIR *dirp);
-struct dirent *_readdir (DIR *dirp);
-struct dirent *readdir (DIR *dirp);
-void _rewinddir (DIR *dirp);
-void rewinddir (DIR *dirp);
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+	DIR *_opendir (const char *path);
+	DIR *opendir (const char *path);
+	int _closedir (DIR *dirp);
+	int closedir (DIR *dirp);
+	struct dirent *_readdir (DIR *dirp);
+	struct dirent *readdir (DIR *dirp);
+	void _rewinddir (DIR *dirp);
+	void rewinddir (DIR *dirp);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 
